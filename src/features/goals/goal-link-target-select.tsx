@@ -59,19 +59,19 @@ export function GoalLinkTargetSelect({
         onOpenChange={onOpenChange}
       >
         <SelectTrigger>
-          <SelectValue placeholder="No linked target" />
+          <SelectValue placeholder="None" />
         </SelectTrigger>
         <SelectContent>
           <div className="sticky top-0 z-10 border-b bg-popover p-1.5">
             <Input
               value={searchQuery}
               onChange={(event) => onSearchQueryChange(event.target.value)}
-              placeholder="Search link targets..."
+              placeholder="Search goals to link..."
               className="h-8"
               onKeyDown={(event) => event.stopPropagation()}
             />
           </div>
-          <SelectItem value="none">No linked target</SelectItem>
+          <SelectItem value="none">None</SelectItem>
           {filteredLinkTargets.map((goal) => (
             <SelectItem
               key={keyPrefix ? `${keyPrefix}-${goal.id}` : goal.id}
@@ -90,12 +90,12 @@ export function GoalLinkTargetSelect({
         </SelectContent>
       </Select>
       <p className="text-xs text-muted-foreground">
-        Marking this goal complete will auto-complete linked goals for the same day.
+        Completing this goal will also complete its linked goals for that day.
       </p>
       {value !== "none" && selectedTargetGoal ? (
         <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 dark:border-amber-400/50 dark:bg-amber-500/10 dark:text-amber-100">
           <p className="font-medium">
-            Linking to {selectedTargetGoal.title} affects calendar visibility.
+            Linking to {selectedTargetGoal.title} may hide it from some calendar months.
           </p>
           <p className="mt-1">{linkedTargetSchedulingNotice}</p>
         </div>

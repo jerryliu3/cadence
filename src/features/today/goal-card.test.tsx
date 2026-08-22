@@ -147,6 +147,31 @@ describe("GoalCard", () => {
     expect(screen.getByText("Linked 3")).toBeInTheDocument();
   });
 
+  it("shows auto-completed when a linked completion was cascaded", () => {
+    render(
+      <GoalCard
+        goal={{ ...goal, archived_at: null }}
+        completions={[
+          {
+            id: "completion-1",
+            goal_id: goal.id,
+            user_id: goal.owner_id,
+            completed_on: "2026-08-13",
+            source: "linked_cascade",
+            created_at: "2026-08-13T00:00:00Z",
+          },
+        ]}
+        linkedCount={0}
+        selectedDate="2026-08-13"
+        referenceDate={new Date("2026-08-13T12:00:00")}
+        weeklyAnchor={weeklyAnchor}
+        onToggle={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText("Auto-completed")).toBeInTheDocument();
+  });
+
   it("uses a light green tile for achieved goals instead of an Achieved badge", () => {
     const progress: GoalProgressSnapshot = {
       goalId: goal.id,

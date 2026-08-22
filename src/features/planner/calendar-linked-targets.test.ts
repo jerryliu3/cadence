@@ -133,13 +133,13 @@ describe("describeLinkedTargetSuppression", () => {
       {
         goalId: "goal-b",
         goalTitle: "Goal B",
-        statusCopy: "hidden in this month and resumes on Sep 1, 2026",
+        statusCopy: "hidden this month, returns Sep 1, 2026",
         sourceGoalTitles: ["Source A", "Source Z"],
       },
       {
         goalId: "goal-c",
         goalTitle: "Goal C",
-        statusCopy: "hidden while linked source goals remain active",
+        statusCopy: "hidden while the goals it's linked to are still active",
         sourceGoalTitles: ["Source C"],
       },
     ]);

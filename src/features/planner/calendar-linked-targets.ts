@@ -84,14 +84,14 @@ export function describeLinkedTargetStatus(
   status: PlannerLinkedTargetScopeStatus
 ): string {
   if (status.state === "indefinite") {
-    return "hidden while linked source goals remain active";
+    return "hidden while the goals it's linked to are still active";
   }
   if (status.state === "suppressed") {
     return status.resumeDate
-      ? `hidden in this month and resumes on ${formatGoalDateLabel(status.resumeDate)}`
+      ? `hidden this month, returns ${formatGoalDateLabel(status.resumeDate)}`
       : "hidden in this month";
   }
-  return "visible in this month";
+  return "showing this month";
 }
 
 export function describeLinkedTargetSuppression({

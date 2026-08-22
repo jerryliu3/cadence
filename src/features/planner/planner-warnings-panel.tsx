@@ -111,11 +111,11 @@ export function PlannerWarningsPanel({
                     ? `${eligibilityNotices.hardIneligible.length} goal${
                         eligibilityNotices.hardIneligible.length === 1 ? "" : "s"
                       } need updates before they can be fully planned.`
-                    : `${eligibilityNotices.linkedTargetCount} linked target goal${
+                    : `${eligibilityNotices.linkedTargetCount} linked goal${
                         eligibilityNotices.linkedTargetCount === 1 ? "" : "s"
                       } ${
                         eligibilityNotices.linkedTargetCount === 1 ? "is" : "are"
-                      } hidden in this month while source goals remain active.`}
+                      } hidden this month while the goals they're linked to are still active.`}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 text-sm">
@@ -186,7 +186,7 @@ export function PlannerWarningsPanel({
             {eligibilityNotices.linkedTargetCount > 0 ? (
               <div className="space-y-2">
                 <p className="text-xs font-medium text-muted-foreground">
-                  Linked targets hidden in this month
+                  Linked goals hidden this month
                 </p>
                 <div
                   className={`space-y-1 rounded-md border bg-muted/20 p-2 text-xs text-muted-foreground ${
@@ -199,7 +199,7 @@ export function PlannerWarningsPanel({
                     <p key={`linked-target-warning-${detail.goalId}`}>
                       {detail.goalTitle}: {detail.statusCopy}
                       {detail.sourceGoalTitles.length > 0
-                        ? ` Sources: ${detail.sourceGoalTitles.join(", ")}.`
+                        ? ` Linked to: ${detail.sourceGoalTitles.join(", ")}.`
                         : ""}
                     </p>
                   ))}

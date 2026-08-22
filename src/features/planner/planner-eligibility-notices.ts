@@ -26,7 +26,7 @@ const ELIGIBILITY_REASON_LABELS: Record<EligibilityReason, string> = {
   deleted: "Deleted goals are excluded from planning.",
   archived: "Archived goals are excluded from planning.",
   linked_target:
-    "Linked target goals can be hidden in months where linked source coverage is still active.",
+    "Linked goals may be hidden in months where the goals they're linked to are still active.",
   invalid_date_range: "The goal dates are invalid (start is after end).",
   end_outside_scope: "This goal ends before the selected planning month.",
   starts_after_scope: "This goal starts after the selected planning month.",

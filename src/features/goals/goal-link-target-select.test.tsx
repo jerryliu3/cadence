@@ -24,7 +24,7 @@ describe("GoalLinkTargetSelect", () => {
       />
     );
 
-    expect(screen.getByRole("combobox")).toHaveTextContent("No linked target");
+    expect(screen.getByRole("combobox")).toHaveTextContent("None");
   });
 
   it("calls onOpenChange when the trigger is clicked", async () => {
@@ -76,7 +76,7 @@ describe("GoalLinkTargetSelect", () => {
     expect(screen.getByText("Due Dec 31, 2026")).toBeInTheDocument();
   });
 
-  it("shows a no-linked-target option and calls onValueChange when selected", async () => {
+  it("shows a none option and calls onValueChange when selected", async () => {
     const onValueChange = vi.fn();
     const user = userEvent.setup();
     render(
@@ -93,7 +93,7 @@ describe("GoalLinkTargetSelect", () => {
       />
     );
 
-    await user.click(screen.getByRole("option", { name: "No linked target" }));
+    await user.click(screen.getByRole("option", { name: "None" }));
     expect(onValueChange).toHaveBeenCalledWith("none");
   });
 
@@ -155,7 +155,7 @@ describe("GoalLinkTargetSelect", () => {
       />
     );
 
-    await user.type(screen.getByPlaceholderText("Search link targets..."), "run");
+    await user.type(screen.getByPlaceholderText("Search goals to link..."), "run");
     expect(onSearchQueryChange).toHaveBeenCalled();
   });
 
@@ -196,11 +196,11 @@ describe("GoalLinkTargetSelect", () => {
     );
 
     expect(
-      screen.getByText("Linking to Read daily affects calendar visibility.")
+      screen.getByText("Linking to Read daily may hide it from some calendar months.")
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Linked targets stay hidden through Aug 31, 2026 and can appear from Sep 1, 2026."
+        "Linked goals stay hidden through Aug 31, 2026 and can show from Sep 1, 2026."
       )
     ).toBeInTheDocument();
   });
