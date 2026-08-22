@@ -26,7 +26,6 @@ import {
 import {
   getCalendarTargetScrollTop,
   getTopVisibleCalendarDay,
-  isCalendarDayVisible,
 } from "@/features/planner/calendar-scroll-position";
 import { MoveSessionDialog } from "@/features/planner/move-session-dialog";
 import { PlannerCoachPanel } from "@/features/planner/coach/planner-coach-panel";
@@ -137,8 +136,6 @@ export function CalendarSurface({
   const [pendingMonthScrollAnchorDay, setPendingMonthScrollAnchorDay] = useState<
     string | null
   >(null);
-  const [isTodayTileVisibleInMonthView, setIsTodayTileVisibleInMonthView] =
-    useState(true);
   const [previewEntryOrderByDay, setPreviewEntryOrderByDay] = useState<
     Record<string, string[]>
   >({});
@@ -227,7 +224,6 @@ export function CalendarSurface({
     currentScopeMonth,
     weekStartsOn,
     calendarToday,
-    todayMonth,
     viewProjection,
     warningModel,
     draftSession,
@@ -461,12 +457,8 @@ export function CalendarSurface({
     viewDescription,
     previousWindowAriaLabel,
     nextWindowAriaLabel,
-    canResetViewWindow,
     stepDays,
   } = viewWindow;
-  const shouldShowTodayButton =
-    canResetViewWindow ||
-    (isMonthScopedCalendarViewMode(viewMode) && !isTodayTileVisibleInMonthView);
   const previousWarningSeverityRef = useRef(plannerWarningSeverity);
   useEffect(() => {
     if (
@@ -774,20 +766,6 @@ export function CalendarSurface({
     const container = multiMonthGridScrollRef.current;
     return container ? getTopVisibleCalendarDay(container) : null;
   }, []);
-  const syncTodayTileVisibilityInMonthView = useCallback(() => {
-    if (!isMonthScopedCalendarViewMode(viewMode)) {
-      setIsTodayTileVisibleInMonthView(true);
-      return;
-    }
-    const container = multiMonthGridScrollRef.current;
-    if (!container) {
-      return;
-    }
-    const nextVisibility = isCalendarDayVisible(container, calendarToday);
-    setIsTodayTileVisibleInMonthView((current) =>
-      current === nextVisibility ? current : nextVisibility
-    );
-  }, [calendarToday, viewMode]);
   const handleMonthScopedGridScroll = useCallback(() => {
     if (!isMonthScopedCalendarViewMode(viewMode)) {
       return;
@@ -796,8 +774,7 @@ export function CalendarSurface({
     if (topRowDay) {
       monthScrollAnchorDayRef.current = topRowDay;
     }
-    syncTodayTileVisibilityInMonthView();
-  }, [resolveMonthScopedTopRowDay, syncTodayTileVisibilityInMonthView, viewMode]);
+  }, [resolveMonthScopedTopRowDay, viewMode]);
   const monthScrollAnchorDay = useMemo(() => {
     if (!month || !isMonthScopedCalendarViewMode(viewMode)) {
       return null;
@@ -852,15 +829,6 @@ export function CalendarSurface({
     const baseDay = parse(resolvedFocusedDay, "yyyy-MM-dd", new Date());
     const nextDay = format(addDays(baseDay, direction * stepDays), "yyyy-MM-dd");
     onSelectedDayChange(nextDay, "push", viewMode);
-  };
-  const resetViewWindow = () => {
-    if (isMonthScopedCalendarViewMode(viewMode)) {
-      setPendingMonthScrollAnchorDay(calendarToday);
-      monthScrollAlignmentKeyRef.current = null;
-      onMonthChange(todayMonth, "replace");
-      return;
-    }
-    onSelectedDayChange(calendarToday, "replace", viewMode);
   };
   const setCalendarViewMode = (nextViewMode: PlannerCalendarViewMode) => {
     if (nextViewMode === viewMode) {
@@ -932,19 +900,6 @@ export function CalendarSurface({
   }, [alignRollingWeekStripToFocusedDay, viewMode]);
   useEffect(() => {
     if (!isMonthScopedCalendarViewMode(viewMode)) {
-      setIsTodayTileVisibleInMonthView(true);
-      return;
-    }
-    if (!context) {
-      return;
-    }
-    const frame = window.requestAnimationFrame(syncTodayTileVisibilityInMonthView);
-    return () => {
-      window.cancelAnimationFrame(frame);
-    };
-  }, [context, month, syncTodayTileVisibilityInMonthView, viewMode]);
-  useEffect(() => {
-    if (!isMonthScopedCalendarViewMode(viewMode)) {
       monthScrollAlignmentKeyRef.current = null;
       return;
     }
@@ -977,7 +932,6 @@ export function CalendarSurface({
       } else {
         container.scrollTop = nextTop;
       }
-      syncTodayTileVisibilityInMonthView();
     });
     return () => {
       window.cancelAnimationFrame(frame);
@@ -986,7 +940,6 @@ export function CalendarSurface({
     context,
     month,
     monthScrollAnchorDay,
-    syncTodayTileVisibilityInMonthView,
     viewMode,
   ]);
   const saveButtonLabel = saveLoading ? "Saving..." : "Save plan";
@@ -1128,14 +1081,12 @@ export function CalendarSurface({
               nextWindowAriaLabel={nextWindowAriaLabel}
               fixedViewHeadingWidthCh={fixedViewHeadingWidthCh}
               viewHeading={viewHeading}
-              canResetViewWindow={shouldShowTodayButton}
               viewDescription={viewDescription}
               expandedMonthRows={expandedMonthRows}
               onMoveViewWindow={moveViewWindow}
               onToggleExpandedMonthRows={() =>
                 setExpandedMonthRows((current) => !current)
               }
-              onResetViewWindow={resetViewWindow}
             />
             <PlannerDndProvider
               getEntryLabel={getDragEntryLabel}

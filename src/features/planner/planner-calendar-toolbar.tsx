@@ -96,7 +96,7 @@ export function PlannerCalendarToolbar({
               </Button>
             ) : null}
             {plannerReadOnly ? (
-              <span className="text-xs text-muted-foreground">
+              <span className="text-xs text-blue-900 dark:text-blue-400">
                 Partner completions (read-only)
               </span>
             ) : null}

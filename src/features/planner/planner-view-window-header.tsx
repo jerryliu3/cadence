@@ -12,12 +12,10 @@ interface PlannerViewWindowHeaderProps {
   nextWindowAriaLabel: string;
   fixedViewHeadingWidthCh: number;
   viewHeading: string;
-  canResetViewWindow: boolean;
   viewDescription: string;
   expandedMonthRows: boolean;
   onMoveViewWindow: (direction: -1 | 1) => void;
   onToggleExpandedMonthRows: () => void;
-  onResetViewWindow: () => void;
 }
 
 export function PlannerViewWindowHeader({
@@ -27,12 +25,10 @@ export function PlannerViewWindowHeader({
   nextWindowAriaLabel,
   fixedViewHeadingWidthCh,
   viewHeading,
-  canResetViewWindow,
   viewDescription,
   expandedMonthRows,
   onMoveViewWindow,
   onToggleExpandedMonthRows,
-  onResetViewWindow,
 }: PlannerViewWindowHeaderProps) {
   return (
     <div className="mx-auto mb-3 w-full max-w-[56rem] space-y-3">
@@ -83,18 +79,6 @@ export function PlannerViewWindowHeader({
             <Loader2 className="size-3 animate-spin" />
             Updating...
           </span>
-        ) : null}
-        {canResetViewWindow ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-6 px-2 text-[11px]"
-            disabled={loading}
-            onClick={onResetViewWindow}
-          >
-            Today
-          </Button>
         ) : null}
       </div>
     </div>

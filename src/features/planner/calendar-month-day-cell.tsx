@@ -242,7 +242,7 @@ export function CalendarMonthDayCell<
                 : isPastInMonth
                   ? "bg-muted/20 hover:border-primary/50"
                   : "bg-background hover:border-primary/60"
-              : "border-muted-foreground/40 bg-muted/80 text-muted-foreground"
+              : "border-slate-400/70 bg-slate-200 text-muted-foreground dark:border-slate-600/70 dark:bg-slate-800/90"
           } ${isAnyEntryDragging && isOver ? "ring-2 ring-primary/70" : ""}`}
           aria-label={ariaLabel}
           data-no-swipe="true"
@@ -256,7 +256,7 @@ export function CalendarMonthDayCell<
                   ? "text-primary"
                   : inMonth
                     ? "text-foreground"
-                    : "text-blue-900 dark:text-blue-400"
+                    : "text-foreground"
               }`}
             >
               {day.slice(8, 10)}
