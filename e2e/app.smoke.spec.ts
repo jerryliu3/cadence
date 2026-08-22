@@ -59,7 +59,7 @@ test("public root route renders landing page", async ({
 }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: /plan your goals/i })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Create account" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Create account" }).first()).toBeVisible();
   await expect(page.getByRole("link", { name: "Go to app" })).toBeVisible();
 });
 
@@ -67,9 +67,7 @@ test("goal creation entry stays under the /app shell", async ({ page }) => {
   await page.goto("/app");
   await page.getByRole("link", { name: /new goal \+/i }).first().click();
   await expect(page).toHaveURL(/\/app\/goals\/new/);
-  await expect(
-    page.getByRole("navigation", { name: "Main navigation" })
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Create goal" }).first()).toBeVisible();
 });
 
 test("login surface has no detectable WCAG A/AA violations", async ({

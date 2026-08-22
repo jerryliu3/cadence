@@ -23,6 +23,9 @@ const featureCards = [
     icon: Users,
   },
 ] as const;
+const primaryCtaClassName =
+  "border-blue-700 bg-blue-700 hover:border-blue-800 hover:bg-blue-800";
+const primaryCtaTextStyle = { color: "#ffffff" } as const;
 
 export function LandingPage() {
   return (
@@ -36,7 +39,13 @@ export function LandingPage() {
             <Button asChild variant="ghost" size="sm">
               <Link href="/login">Log in</Link>
             </Button>
-            <Button asChild size="sm">
+            <Button
+              asChild
+              variant="outline"
+              size="sm"
+              className={primaryCtaClassName}
+              style={primaryCtaTextStyle}
+            >
               <Link href="/signup">Create account</Link>
             </Button>
           </nav>
@@ -57,7 +66,13 @@ export function LandingPage() {
               accountability in one focused app.
             </p>
             <div className="flex flex-wrap items-center gap-3">
-              <Button asChild size="lg">
+              <Button
+                asChild
+                variant="outline"
+                size="lg"
+                className={primaryCtaClassName}
+                style={primaryCtaTextStyle}
+              >
                 <Link href="/signup">
                   Create account
                   <ArrowRight className="size-4" />
@@ -118,7 +133,13 @@ export function LandingPage() {
             Build the habit loop first: plan clearly, complete daily, review weekly.
           </p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-            <Button asChild size="lg">
+            <Button
+              asChild
+              variant="outline"
+              size="lg"
+              className={primaryCtaClassName}
+              style={primaryCtaTextStyle}
+            >
               <Link href="/signup">Create account</Link>
             </Button>
             <Button asChild size="lg" variant="ghost">
