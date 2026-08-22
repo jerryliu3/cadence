@@ -26,6 +26,7 @@ import {
 import {
   getCalendarTargetScrollTop,
   getTopVisibleCalendarDay,
+  isCalendarDayVisible,
 } from "@/features/planner/calendar-scroll-position";
 import { MoveSessionDialog } from "@/features/planner/move-session-dialog";
 import { PlannerCoachPanel } from "@/features/planner/coach/planner-coach-panel";
@@ -136,6 +137,8 @@ export function CalendarSurface({
   const [pendingMonthScrollAnchorDay, setPendingMonthScrollAnchorDay] = useState<
     string | null
   >(null);
+  const [isTodayTileVisibleInMonthView, setIsTodayTileVisibleInMonthView] =
+    useState(true);
   const [previewEntryOrderByDay, setPreviewEntryOrderByDay] = useState<
     Record<string, string[]>
   >({});
@@ -461,6 +464,9 @@ export function CalendarSurface({
     canResetViewWindow,
     stepDays,
   } = viewWindow;
+  const shouldShowTodayButton =
+    canResetViewWindow ||
+    (isMonthScopedCalendarViewMode(viewMode) && !isTodayTileVisibleInMonthView);
   const previousWarningSeverityRef = useRef(plannerWarningSeverity);
   useEffect(() => {
     if (
@@ -768,15 +774,30 @@ export function CalendarSurface({
     const container = multiMonthGridScrollRef.current;
     return container ? getTopVisibleCalendarDay(container) : null;
   }, []);
+  const syncTodayTileVisibilityInMonthView = useCallback(() => {
+    if (!isMonthScopedCalendarViewMode(viewMode)) {
+      setIsTodayTileVisibleInMonthView(true);
+      return;
+    }
+    const container = multiMonthGridScrollRef.current;
+    if (!container) {
+      return;
+    }
+    const nextVisibility = isCalendarDayVisible(container, calendarToday);
+    setIsTodayTileVisibleInMonthView((current) =>
+      current === nextVisibility ? current : nextVisibility
+    );
+  }, [calendarToday, viewMode]);
   const handleMonthScopedGridScroll = useCallback(() => {
-    if (!context || !isMonthScopedCalendarViewMode(viewMode)) {
+    if (!isMonthScopedCalendarViewMode(viewMode)) {
       return;
     }
     const topRowDay = resolveMonthScopedTopRowDay();
     if (topRowDay) {
       monthScrollAnchorDayRef.current = topRowDay;
     }
-  }, [context, resolveMonthScopedTopRowDay, viewMode]);
+    syncTodayTileVisibilityInMonthView();
+  }, [resolveMonthScopedTopRowDay, syncTodayTileVisibilityInMonthView, viewMode]);
   const monthScrollAnchorDay = useMemo(() => {
     if (!month || !isMonthScopedCalendarViewMode(viewMode)) {
       return null;
@@ -834,6 +855,8 @@ export function CalendarSurface({
   };
   const resetViewWindow = () => {
     if (isMonthScopedCalendarViewMode(viewMode)) {
+      setPendingMonthScrollAnchorDay(calendarToday);
+      monthScrollAlignmentKeyRef.current = null;
       onMonthChange(todayMonth, "replace");
       return;
     }
@@ -909,6 +932,19 @@ export function CalendarSurface({
   }, [alignRollingWeekStripToFocusedDay, viewMode]);
   useEffect(() => {
     if (!isMonthScopedCalendarViewMode(viewMode)) {
+      setIsTodayTileVisibleInMonthView(true);
+      return;
+    }
+    if (!context) {
+      return;
+    }
+    const frame = window.requestAnimationFrame(syncTodayTileVisibilityInMonthView);
+    return () => {
+      window.cancelAnimationFrame(frame);
+    };
+  }, [context, month, syncTodayTileVisibilityInMonthView, viewMode]);
+  useEffect(() => {
+    if (!isMonthScopedCalendarViewMode(viewMode)) {
       monthScrollAlignmentKeyRef.current = null;
       return;
     }
@@ -941,11 +977,18 @@ export function CalendarSurface({
       } else {
         container.scrollTop = nextTop;
       }
+      syncTodayTileVisibilityInMonthView();
     });
     return () => {
       window.cancelAnimationFrame(frame);
     };
-  }, [context, month, monthScrollAnchorDay, viewMode]);
+  }, [
+    context,
+    month,
+    monthScrollAnchorDay,
+    syncTodayTileVisibilityInMonthView,
+    viewMode,
+  ]);
   const saveButtonLabel = saveLoading ? "Saving..." : "Save plan";
   const renderCalendarDayCell = usePlannerCalendarDayCellRenderer({
     viewMode,
@@ -1085,7 +1128,7 @@ export function CalendarSurface({
               nextWindowAriaLabel={nextWindowAriaLabel}
               fixedViewHeadingWidthCh={fixedViewHeadingWidthCh}
               viewHeading={viewHeading}
-              canResetViewWindow={canResetViewWindow}
+              canResetViewWindow={shouldShowTodayButton}
               viewDescription={viewDescription}
               expandedMonthRows={expandedMonthRows}
               onMoveViewWindow={moveViewWindow}

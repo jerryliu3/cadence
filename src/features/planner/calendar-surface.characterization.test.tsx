@@ -507,6 +507,89 @@ describe("CalendarSurface characterization", () => {
     expect(await screen.findAllByRole("button", { name: "Today" })).not.toHaveLength(0);
   });
 
+  it("shows Today when today's tile is outside the month viewport", async () => {
+    postJsonMock.mockResolvedValue(buildContext([]));
+    const rect = (top: number, height = 96, width = 100): DOMRect => ({
+      top,
+      bottom: top + height,
+      left: 0,
+      right: width,
+      width,
+      height,
+      x: 0,
+      y: top,
+      toJSON: () => ({}),
+    });
+    const rectSpy = vi
+      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockImplementation(function (this: HTMLElement) {
+        if (this.classList.contains("overflow-y-auto")) {
+          return rect(500, 544, 800);
+        }
+        const container = this.closest<HTMLElement>(".overflow-y-auto");
+        const scrollTop = container?.scrollTop ?? 0;
+        if (this.dataset.day === "2026-08-10") {
+          return rect(1200 - scrollTop);
+        }
+        if (this.dataset.day === "2026-08-15") {
+          return rect(2000 - scrollTop);
+        }
+        return rect(0);
+      });
+    const offsetTopSpy = vi
+      .spyOn(HTMLElement.prototype, "offsetTop", "get")
+      .mockImplementation(function (this: HTMLElement) {
+        return this.dataset.day === "2026-08-10" ? 1000 : 0;
+      });
+    const originalScrollTo = HTMLElement.prototype.scrollTo;
+    Object.defineProperty(HTMLElement.prototype, "scrollTo", {
+      configurable: true,
+      writable: true,
+      value(this: HTMLElement, options: ScrollToOptions) {
+        this.scrollTop = options.top ?? 0;
+      },
+    });
+    const animationFrameSpy = vi
+      .spyOn(window, "requestAnimationFrame")
+      .mockImplementation((callback) => {
+        callback(0);
+        return 1;
+      });
+
+    try {
+      render(
+        <CalendarSurface
+          activeTab="calendar"
+          month="2026-08"
+          selectedDay={null}
+          viewMode="month"
+          onMonthChange={vi.fn()}
+          onViewModeChange={vi.fn()}
+          onSelectedDayChange={vi.fn()}
+          onPlannerMutation={vi.fn()}
+        />
+      );
+
+      await waitFor(() => {
+        expect(postJsonMock).toHaveBeenCalledWith(
+          "/api/planner/prepare",
+          expect.any(Object)
+        );
+      });
+
+      expect(await screen.findByRole("button", { name: "Today" })).toBeInTheDocument();
+    } finally {
+      animationFrameSpy.mockRestore();
+      if (originalScrollTo) {
+        HTMLElement.prototype.scrollTo = originalScrollTo;
+      } else {
+        Reflect.deleteProperty(HTMLElement.prototype, "scrollTo");
+      }
+      offsetTopSpy.mockRestore();
+      rectSpy.mockRestore();
+    }
+  });
+
   it("keeps the centered period and right-aligned calendar actions on one row", async () => {
     postJsonMock.mockResolvedValue(
       buildContext([
