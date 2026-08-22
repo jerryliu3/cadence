@@ -42,6 +42,7 @@ interface SocialLeaderboardStandingsResponse {
 
 export type FeedReactionKind = "cheer" | "fire" | "clap" | "strong";
 export const SOCIAL_TAB_CACHE_PREFIX = "social:";
+const SOCIAL_FEED_CACHE_PREFIX = `${SOCIAL_TAB_CACHE_PREFIX}feed:`;
 const SOCIAL_FEED_CACHE_TTL_MS = 60 * 1000;
 
 async function parseApiError(response: Response, fallbackMessage: string) {
@@ -54,6 +55,10 @@ async function parseApiError(response: Response, fallbackMessage: string) {
 
 export function invalidateSocialTabCache() {
   invalidateTabDataCacheByPrefix(SOCIAL_TAB_CACHE_PREFIX);
+}
+
+export function invalidateSocialFeedCache() {
+  invalidateTabDataCacheByPrefix(SOCIAL_FEED_CACHE_PREFIX);
 }
 
 function invalidateSocialAndPlannerCaches() {
@@ -105,7 +110,7 @@ export async function fetchSocialFeedPage({
     params.set("cursor", cursor);
   }
   return fetchSocialCachedJson<SocialFeedResponse>({
-    cacheKey: `${SOCIAL_TAB_CACHE_PREFIX}feed:${params.toString()}`,
+    cacheKey: `${SOCIAL_FEED_CACHE_PREFIX}${params.toString()}`,
     path: `/api/social/feed?${params.toString()}`,
     fallbackMessage: "Failed to load feed.",
     ttlMs: SOCIAL_FEED_CACHE_TTL_MS,

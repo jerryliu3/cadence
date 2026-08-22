@@ -1,10 +1,15 @@
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { invalidateSocialTabCache } from "@/features/social/data";
+import {
+  invalidateSocialFeedCache,
+  invalidateSocialTabCache,
+} from "@/features/social/data";
 import { SocialSurface } from "@/features/social/social-surface";
 import { requestXpRefresh } from "@/lib/xp/events";
 
 vi.mock("@/features/social/data", () => ({
+  invalidateSocialFeedCache: vi.fn(),
   invalidateSocialTabCache: vi.fn(),
 }));
 
@@ -46,7 +51,7 @@ afterEach(() => {
 });
 
 describe("SocialSurface refresh behavior", () => {
-  it("refreshes active tab when an XP refresh event is requested", async () => {
+  it("refreshes feed tab when an XP refresh event is requested", async () => {
     render(<SocialSurface initialTab="feed" />);
 
     expect(screen.getByTestId("feed-list")).toHaveAttribute("data-refresh-token", "0");
@@ -61,7 +66,25 @@ describe("SocialSurface refresh behavior", () => {
     await waitFor(() => {
       expect(screen.getByTestId("feed-list")).toHaveAttribute("data-refresh-token", "1");
     });
-    expect(invalidateSocialTabCache).toHaveBeenCalledTimes(1);
+    expect(invalidateSocialFeedCache).toHaveBeenCalledTimes(1);
+    expect(invalidateSocialTabCache).not.toHaveBeenCalled();
+  });
+
+  it("does not refresh non-feed tabs on XP refresh events", async () => {
+    const user = userEvent.setup();
+    render(<SocialSurface initialTab="challenges" />);
+
+    await user.click(screen.getByRole("tab", { name: "Leaderboards" }));
+
+    act(() => {
+      requestXpRefresh({
+        reason: "completion",
+        desiredFactState: "present",
+      });
+    });
+
+    expect(invalidateSocialFeedCache).not.toHaveBeenCalled();
+    expect(invalidateSocialTabCache).not.toHaveBeenCalled();
   });
 
   it("refreshes once when window focus returns within cooldown window", async () => {

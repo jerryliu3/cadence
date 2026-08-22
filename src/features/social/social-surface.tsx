@@ -3,7 +3,10 @@
 import { Flag, Newspaper, Trophy, Users } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ChallengeList } from "@/features/social/challenges/challenge-list";
-import { invalidateSocialTabCache } from "@/features/social/data";
+import {
+  invalidateSocialFeedCache,
+  invalidateSocialTabCache,
+} from "@/features/social/data";
 import { GroupJoinCard } from "@/features/social/group-join-card";
 import { TeamPanel } from "@/features/social/team/team-panel";
 import { FeedList } from "@/features/social/feed/feed-list";
@@ -39,10 +42,14 @@ export function SocialSurface({
   const [refreshToken, setRefreshToken] = useState(0);
   const lastFocusRefreshAtRef = useRef(0);
 
-  const triggerRefresh = useCallback(() => {
-    invalidateSocialTabCache();
+  const refreshActiveTab = useCallback(() => {
     setRefreshToken((token) => token + 1);
   }, []);
+
+  const triggerGlobalRefresh = useCallback(() => {
+    invalidateSocialTabCache();
+    refreshActiveTab();
+  }, [refreshActiveTab]);
 
   const handleVisibilityOrFocus = useCallback(() => {
     if (document.visibilityState !== "visible") {
@@ -53,14 +60,18 @@ export function SocialSurface({
       return;
     }
     lastFocusRefreshAtRef.current = now;
-    triggerRefresh();
-  }, [triggerRefresh]);
+    triggerGlobalRefresh();
+  }, [triggerGlobalRefresh]);
 
   useEffect(() => {
     return subscribeXpRefresh(() => {
-      triggerRefresh();
+      if (activeTab !== "feed") {
+        return;
+      }
+      invalidateSocialFeedCache();
+      refreshActiveTab();
     });
-  }, [triggerRefresh]);
+  }, [activeTab, refreshActiveTab]);
 
   useEffect(() => {
     window.addEventListener("focus", handleVisibilityOrFocus);

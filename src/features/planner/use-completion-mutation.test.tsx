@@ -1,7 +1,7 @@
 import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useCompletionMutation } from "@/features/planner/use-completion-mutation";
-import { invalidateSocialTabCache } from "@/features/social/data";
+import { invalidateSocialFeedCache } from "@/features/social/data";
 import { executeCompletionDispatch } from "@/lib/planner/completion-dispatch";
 import { subscribeXpRefresh, type XpRefreshRequestDetail } from "@/lib/xp/events";
 
@@ -15,7 +15,7 @@ vi.mock("@/lib/planner/completion-dispatch", async (importOriginal) => {
 });
 
 vi.mock("@/features/social/data", () => ({
-  invalidateSocialTabCache: vi.fn(),
+  invalidateSocialFeedCache: vi.fn(),
 }));
 
 const allowedDecision = {
@@ -68,7 +68,7 @@ describe("useCompletionMutation", () => {
         sourceRect,
       },
     ]);
-    expect(invalidateSocialTabCache).toHaveBeenCalledTimes(1);
+    expect(invalidateSocialFeedCache).toHaveBeenCalledTimes(1);
   });
 
   it("does not refresh XP after a failed completion request", async () => {
@@ -96,6 +96,6 @@ describe("useCompletionMutation", () => {
     }
 
     expect(onRefresh).not.toHaveBeenCalled();
-    expect(invalidateSocialTabCache).not.toHaveBeenCalled();
+    expect(invalidateSocialFeedCache).not.toHaveBeenCalled();
   });
 });
