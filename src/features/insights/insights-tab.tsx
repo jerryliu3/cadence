@@ -323,6 +323,32 @@ export function InsightsTab({
   );
   const overallStats = state.insightsStats?.overall ?? null;
 
+  const refreshInsightsInBackground = useCallback(
+    (scrollY: number) => {
+      void loadData({ showLoading: false, forceRefresh: true })
+        .then(() => {
+          requestAnimationFrame(() => {
+            window.scrollTo({ top: scrollY, behavior: "auto" });
+          });
+        })
+        .catch((error) => {
+          if (isProgressContextAuthenticationError(error)) {
+            redirectToLogin();
+            return;
+          }
+          const timeoutLike =
+            error instanceof Error &&
+            error.message.toLowerCase().includes("timed out");
+          toast.error(
+            timeoutLike
+              ? "Completion updated, but calendar refresh timed out. Please refresh the page."
+              : "Completion updated, but calendar refresh failed. Please refresh the page."
+          );
+        });
+    },
+    [loadData, redirectToLogin]
+  );
+
   const toggleMilestoneDateSelection = useCallback(
     async (
       goal: Goal,
@@ -388,29 +414,10 @@ export function InsightsTab({
       }
 
       toast.success(isSelected ? `Removed ${completionDate}.` : `Selected ${completionDate}.`);
-      try {
-        await loadData({ showLoading: false, forceRefresh: true });
-        requestAnimationFrame(() => {
-          window.scrollTo({ top: currentScrollY, behavior: "auto" });
-        });
-      } catch (error) {
-        if (isProgressContextAuthenticationError(error)) {
-          redirectToLogin();
-          return;
-        }
-        const timeoutLike =
-          error instanceof Error &&
-          error.message.toLowerCase().includes("timed out");
-        toast.error(
-          timeoutLike
-            ? "Completion updated, but calendar refresh timed out. Please refresh the page."
-            : "Completion updated, but calendar refresh failed. Please refresh the page."
-        );
-      } finally {
-        setPendingRetroDate(null);
-      }
+      setPendingRetroDate(null);
+      refreshInsightsInBackground(currentScrollY);
     },
-    [loadData, pendingRetroDate, readOnly, redirectToLogin, runCompletionMutation]
+    [pendingRetroDate, readOnly, refreshInsightsInBackground, runCompletionMutation]
   );
 
   const toggleRecurringDateSelection = useCallback(
@@ -470,29 +477,10 @@ export function InsightsTab({
       }
 
       toast.success(hasCompletionOnDate ? `Removed ${completionDate}.` : `Selected ${completionDate}.`);
-      try {
-        await loadData({ showLoading: false, forceRefresh: true });
-        requestAnimationFrame(() => {
-          window.scrollTo({ top: currentScrollY, behavior: "auto" });
-        });
-      } catch (error) {
-        if (isProgressContextAuthenticationError(error)) {
-          redirectToLogin();
-          return;
-        }
-        const timeoutLike =
-          error instanceof Error &&
-          error.message.toLowerCase().includes("timed out");
-        toast.error(
-          timeoutLike
-            ? "Completion updated, but calendar refresh timed out. Please refresh the page."
-            : "Completion updated, but calendar refresh failed. Please refresh the page."
-        );
-      } finally {
-        setPendingRetroDate(null);
-      }
+      setPendingRetroDate(null);
+      refreshInsightsInBackground(currentScrollY);
     },
-    [loadData, pendingRetroDate, readOnly, redirectToLogin, runCompletionMutation]
+    [pendingRetroDate, readOnly, refreshInsightsInBackground, runCompletionMutation]
   );
 
   const saveMilestoneNames = useCallback(

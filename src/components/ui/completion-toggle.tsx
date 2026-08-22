@@ -29,19 +29,29 @@ interface CompletionToggleProps
 
 export function CompletionToggle({
   completed,
-  pending = false,
   size = "md",
   className,
   onClick,
   ...props
 }: CompletionToggleProps) {
+  const OPTIMISTIC_FALLBACK_MS = 8_000;
   const classes = sizeClasses[size];
   const [pressActive, setPressActive] = React.useState(false);
   const [optimisticCompleted, setOptimisticCompleted] = React.useState<boolean | null>(
     null
   );
+  const optimisticBaseStateRef = React.useRef<boolean | null>(null);
   const pressTimerRef = React.useRef<number | null>(null);
   const optimisticTimerRef = React.useRef<number | null>(null);
+
+  const clearOptimisticState = React.useCallback(() => {
+    setOptimisticCompleted(null);
+    optimisticBaseStateRef.current = null;
+    if (optimisticTimerRef.current !== null) {
+      window.clearTimeout(optimisticTimerRef.current);
+      optimisticTimerRef.current = null;
+    }
+  }, []);
 
   React.useEffect(
     () => () => {
@@ -54,6 +64,16 @@ export function CompletionToggle({
     },
     []
   );
+
+  React.useEffect(() => {
+    if (
+      optimisticCompleted !== null &&
+      optimisticBaseStateRef.current !== null &&
+      completed !== optimisticBaseStateRef.current
+    ) {
+      clearOptimisticState();
+    }
+  }, [clearOptimisticState, completed, optimisticCompleted]);
 
   const handleClick: React.MouseEventHandler<HTMLButtonElement> = (event) => {
     triggerLightPressFeedback();
@@ -74,14 +94,16 @@ export function CompletionToggle({
       setPressActive(false);
     }
 
+    optimisticBaseStateRef.current = completed;
     setOptimisticCompleted(desiredState);
     if (optimisticTimerRef.current !== null) {
       window.clearTimeout(optimisticTimerRef.current);
     }
     optimisticTimerRef.current = window.setTimeout(() => {
       setOptimisticCompleted(null);
+      optimisticBaseStateRef.current = null;
       optimisticTimerRef.current = null;
-    }, pending ? 2200 : desiredState ? 1400 : 900);
+    }, OPTIMISTIC_FALLBACK_MS);
     onClick?.(event);
   };
 
