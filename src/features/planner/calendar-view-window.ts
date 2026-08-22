@@ -116,7 +116,7 @@ function resolveWindowAriaLabel({
 }: {
   viewMode: PlannerCalendarViewMode;
   direction: "previous" | "next";
-}) {
+}): string {
   if (isMonthScopedCalendarViewMode(viewMode)) {
     if (viewMode === "month") {
       return direction === "previous" ? "Previous month" : "Next month";
@@ -132,6 +132,8 @@ function resolveWindowAriaLabel({
       return direction === "previous" ? "Previous 3 days" : "Next 3 days";
     case "day":
       return direction === "previous" ? "Previous day" : "Next day";
+    default:
+      return direction === "previous" ? "Previous window" : "Next window";
   }
 }
 
