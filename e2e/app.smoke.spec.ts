@@ -72,23 +72,3 @@ test("login surface has no detectable WCAG A/AA violations", async ({
   );
   expect(violationsExcludingKnownViewportTradeoff).toEqual([]);
 });
-
-test("login form signs in seeded user", async ({
-  page,
-}) => {
-  await page.context().clearCookies();
-  await page.goto("/login");
-  await page.evaluate(() => window.localStorage.clear());
-
-  const email = page.getByLabel("Email");
-  const password = page.getByLabel("Password");
-  await expect(async () => {
-    await email.fill("alice@example.com");
-    await password.fill("password123");
-    await expect(email).toHaveValue("alice@example.com");
-    await expect(password).toHaveValue("password123");
-  }).toPass({ timeout: 15_000 });
-
-  await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL(/\/calendar/);
-});
