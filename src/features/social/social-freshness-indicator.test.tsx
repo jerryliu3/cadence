@@ -36,10 +36,7 @@ describe("SocialFreshnessIndicator", () => {
       "next run in"
     );
     expect(screen.getByTestId("social-freshness-indicator")).toHaveTextContent(
-      "leaderboard"
-    );
-    expect(screen.getByTestId("social-freshness-indicator")).toHaveTextContent(
-      "challenges"
+      "standings + challenges"
     );
   });
 

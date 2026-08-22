@@ -52,6 +52,23 @@ function formatRelative(timestampMs: number | null) {
   return formatDistanceToNow(new Date(timestampMs), { addSuffix: true });
 }
 
+function combineStandingsAndChallengesFreshness({
+  leaderboardRefreshedAtMs,
+  challengesRefreshedAtMs,
+}: {
+  leaderboardRefreshedAtMs: number | null;
+  challengesRefreshedAtMs: number | null;
+}) {
+  const timestamps = [leaderboardRefreshedAtMs, challengesRefreshedAtMs].filter(
+    (timestamp): timestamp is number => timestamp !== null
+  );
+  if (timestamps.length === 0) {
+    return null;
+  }
+  // Use the older timestamp so the single signal is safe for both datasets.
+  return Math.min(...timestamps);
+}
+
 export function SocialFreshnessIndicator({
   refreshToken = 0,
 }: SocialFreshnessIndicatorProps) {
@@ -98,6 +115,16 @@ export function SocialFreshnessIndicator({
     );
   }, [clientNowMs, snapshot]);
 
+  const standingsAndChallengesRefreshedAt = useMemo(() => {
+    if (!snapshot) {
+      return null;
+    }
+    return combineStandingsAndChallengesFreshness({
+      leaderboardRefreshedAtMs: snapshot.leaderboardRefreshedAtMs,
+      challengesRefreshedAtMs: snapshot.challengesRefreshedAtMs,
+    });
+  }, [snapshot]);
+
   if (!snapshot) {
     return (
       <p className="text-xs text-muted-foreground">
@@ -111,8 +138,7 @@ export function SocialFreshnessIndicator({
     <p className="text-xs text-muted-foreground" data-testid="social-freshness-indicator">
       Sync every 1m
       {` · next run in ${secondsUntilNextRefresh ?? 0}s`}
-      {` · leaderboard ${formatRelative(snapshot.leaderboardRefreshedAtMs)}`}
-      {` · challenges ${formatRelative(snapshot.challengesRefreshedAtMs)}`}
+      {` · standings + challenges ${formatRelative(standingsAndChallengesRefreshedAt)}`}
     </p>
   );
 }
