@@ -16,7 +16,6 @@ This system seeds synthetic users and runs a lightweight activity tick to keep t
 ## Components
 
 - `public.synthetic_users`: synthetic account roster, persona, and daily budget.
-- `public.synthetic_users.account_private`: synthetic profile privacy marker.
 - `public.synthetic_config`: single-row config + global kill switch.
 - `public.provision_synthetic_users_service(target_count, goals_per_user)`: creates synthetic auth users, profiles, goals, and challenge participants.
 - `public.synthetic_activity_tick_service()`: emits bounded daily completions and feed reactions.
