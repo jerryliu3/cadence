@@ -155,7 +155,7 @@ describe("GoalLinkTargetSelect", () => {
       />
     );
 
-    await user.type(screen.getByPlaceholderText("Search goals to link..."), "run");
+    await user.type(screen.getByPlaceholderText("Search main goals to link..."), "run");
     expect(onSearchQueryChange).toHaveBeenCalled();
   });
 
@@ -196,11 +196,13 @@ describe("GoalLinkTargetSelect", () => {
     );
 
     expect(
-      screen.getByText("Linking to Read daily may hide it from some calendar months.")
+      screen.getByText(
+        "Linking this subgoal to Read daily may hide that main goal in some calendar months."
+      )
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Linked goals stay hidden through Aug 31, 2026 and can show from Sep 1, 2026."
+        "Linked main goals stay hidden through Aug 31, 2026 and can show from Sep 1, 2026."
       )
     ).toBeInTheDocument();
   });

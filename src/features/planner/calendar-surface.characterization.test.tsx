@@ -858,15 +858,15 @@ describe("CalendarSurface characterization", () => {
     ).toBeInTheDocument();
     expect(
       within(dialog).queryByText(
-        /Goal B: Linked goals may be hidden in months where the goals they're linked to are still active\./i
+        /Goal B: Linked main goals may be hidden in months where linked subgoals are still active\./i
       )
     ).not.toBeInTheDocument();
     expect(
-      within(dialog).getByText(/Linked goals hidden this month/i)
+      within(dialog).getByText(/Linked main goals hidden this month/i)
     ).toBeInTheDocument();
     expect(
       within(dialog).getByText(
-        /Goal B: hidden while the goals it's linked to are still active/i
+        /Goal B: hidden while linked subgoals are still active/i
       )
     ).toBeInTheDocument();
   });
@@ -916,7 +916,7 @@ describe("CalendarSurface characterization", () => {
     const dialog = await screen.findByRole("dialog");
     expect(
       within(dialog).getByText(
-        /Goal B: hidden this month, returns Sep 1, 2026 Linked to: Goal A\./i
+        /Goal B: hidden this month, returns Sep 1, 2026 Linked subgoals: Goal A\./i
       )
     ).toBeInTheDocument();
   });

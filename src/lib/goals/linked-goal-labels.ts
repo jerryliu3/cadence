@@ -38,7 +38,7 @@ export function getLinkedTargetSchedulingNotice({
   sourceEndDate: string | null;
 }) {
   if (!sourceEndDate) {
-    return "Linked goals stay hidden while this goal is still active (it has no end date).";
+    return "Linked main goals stay hidden while this subgoal is still active (it has no end date).";
   }
-  return `Linked goals stay hidden through ${formatGoalDateLabel(sourceEndDate)} and can show from ${formatGoalDateLabel(addDaysToDateString(sourceEndDate, 1))}.`;
+  return `Linked main goals stay hidden through ${formatGoalDateLabel(sourceEndDate)} and can show from ${formatGoalDateLabel(addDaysToDateString(sourceEndDate, 1))}.`;
 }

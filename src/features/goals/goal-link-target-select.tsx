@@ -50,7 +50,7 @@ export function GoalLinkTargetSelect({
     <div className="space-y-2">
       <Label className="inline-flex items-center gap-2">
         <Link2 className="size-4 text-muted-foreground" />
-        Link this goal to another goal
+        Link this subgoal to a main goal
       </Label>
       <Select
         value={value}
@@ -66,7 +66,7 @@ export function GoalLinkTargetSelect({
             <Input
               value={searchQuery}
               onChange={(event) => onSearchQueryChange(event.target.value)}
-              placeholder="Search goals to link..."
+              placeholder="Search main goals to link..."
               className="h-8"
               onKeyDown={(event) => event.stopPropagation()}
             />
@@ -90,12 +90,13 @@ export function GoalLinkTargetSelect({
         </SelectContent>
       </Select>
       <p className="text-xs text-muted-foreground">
-        Completing this goal will also complete its linked goals for that day.
+        Completing this subgoal also counts toward its linked main goal for that day.
       </p>
       {value !== "none" && selectedTargetGoal ? (
         <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 dark:border-amber-400/50 dark:bg-amber-500/10 dark:text-amber-100">
           <p className="font-medium">
-            Linking to {selectedTargetGoal.title} may hide it from some calendar months.
+            Linking this subgoal to {selectedTargetGoal.title} may hide that main goal in
+            some calendar months.
           </p>
           <p className="mt-1">{linkedTargetSchedulingNotice}</p>
         </div>

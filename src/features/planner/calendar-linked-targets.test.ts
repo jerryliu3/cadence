@@ -139,7 +139,7 @@ describe("describeLinkedTargetSuppression", () => {
       {
         goalId: "goal-c",
         goalTitle: "Goal C",
-        statusCopy: "hidden while the goals it's linked to are still active",
+        statusCopy: "hidden while linked subgoals are still active",
         sourceGoalTitles: ["Source C"],
       },
     ]);

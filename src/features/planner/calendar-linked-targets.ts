@@ -84,7 +84,7 @@ export function describeLinkedTargetStatus(
   status: PlannerLinkedTargetScopeStatus
 ): string {
   if (status.state === "indefinite") {
-    return "hidden while the goals it's linked to are still active";
+    return "hidden while linked subgoals are still active";
   }
   if (status.state === "suppressed") {
     return status.resumeDate

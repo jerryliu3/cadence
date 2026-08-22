@@ -33,15 +33,15 @@ export function LinkedTargetsNote({
   const hiddenCount = rows.filter((row) => row.status.state !== "visible").length;
   const summary =
     hiddenCount === 0
-      ? "Linked goals can show this month."
+      ? "Linked main goals can show this month."
       : hiddenCount === 1
-        ? "1 linked goal is hidden this month."
-        : `${hiddenCount} linked goals are hidden this month.`;
+        ? "1 linked main goal is hidden this month."
+        : `${hiddenCount} linked main goals are hidden this month.`;
   return (
     <div className="min-w-0 overflow-hidden rounded-md border border-dashed p-2 text-xs">
       <div className="flex min-w-0 items-center gap-1.5 font-medium">
         <Link2 className="size-3.5" />
-        <span>Linked goals</span>
+        <span>Linked main goals</span>
       </div>
       <p className="mt-1 break-words text-muted-foreground">{summary}</p>
       <ul className="mt-2 min-w-0 space-y-1 text-muted-foreground">
