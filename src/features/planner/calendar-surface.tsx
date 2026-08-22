@@ -1286,6 +1286,7 @@ export function CalendarSurface({
         loading={loading}
         viewMode={viewMode}
         canOpenSettings={Boolean(context?.preferences)}
+        linkedTargetDetails={eligibilityNotices.linkedTargetDetails}
         searchQuery={searchQuery}
         onSave={savePlan}
         onDiscardDraftChanges={discardDraftChanges}
@@ -1319,7 +1320,6 @@ export function CalendarSurface({
               viewHeading={viewHeading}
               showTodayShortcut={showTodayShortcut}
               expandedMonthRows={expandedMonthRows}
-              linkedTargetDetails={eligibilityNotices.linkedTargetDetails}
               onMoveViewWindow={moveViewWindow}
               onJumpToToday={jumpToToday}
               onToggleExpandedMonthRows={() =>
