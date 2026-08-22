@@ -108,6 +108,8 @@ preserving correctness, maintainability, and clear ownership boundaries.
 When changing frontend code, prefer behavior-preserving decomposition over net-new
 surfaces. The default is to simplify and reuse what already exists.
 
+- For Goalmaxxing web UX across product and marketing surfaces, follow
+  `docs/ux/goalmaxxing-experience-design-guide.md`.
 - Reuse-first: before adding a new hook/component/helper, check whether an
   existing one can be extended or composed.
 - Prefer canonical homes for shared domain logic (`src/lib/planner/*`,
