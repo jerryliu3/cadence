@@ -277,7 +277,9 @@ describe("CalendarSurface characterization", () => {
         <CalendarSurface
           activeTab="calendar"
           month="2026-09"
-          selectedDay={viewMode === "month" ? null : "2026-09-01"}
+          selectedDay={
+            viewMode === "month" ? null : "2026-09-01"
+          }
           viewMode={viewMode}
           onMonthChange={vi.fn()}
           onViewModeChange={vi.fn()}
@@ -290,6 +292,44 @@ describe("CalendarSurface characterization", () => {
       expect(screen.queryByText("07:30 Goal B")).not.toBeInTheDocument();
     }
   );
+
+  it("uses today's weekday column when switching from month to day view", async () => {
+    postJsonMock.mockResolvedValue(
+      buildContext([
+        unit({
+          originalGoalId: "goal-a",
+          unitKey: "total:1",
+          scheduledDate: "2026-08-20",
+        }),
+      ])
+    );
+    const onSelectedDayChange = vi.fn();
+
+    render(
+      <CalendarSurface
+        activeTab="calendar"
+        month="2026-08"
+        selectedDay={null}
+        viewMode="month"
+        onMonthChange={vi.fn()}
+        onViewModeChange={vi.fn()}
+        onSelectedDayChange={onSelectedDayChange}
+        onPlannerMutation={vi.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(postJsonMock).toHaveBeenCalledWith(
+        "/api/planner/prepare",
+        expect.any(Object)
+      );
+    });
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Calendar view mode" }));
+    fireEvent.click(await screen.findByRole("option", { name: "Day" }));
+
+    expect(onSelectedDayChange).toHaveBeenCalledWith("2026-08-15", "push", "day");
+  });
 
   it("filters visible calendar entries by the search query", async () => {
     postJsonMock.mockResolvedValue(
@@ -1463,6 +1503,86 @@ describe("CalendarSurface characterization", () => {
     const lockButton = screen.queryByRole("button", { name: "Lock" });
     if (lockButton) {
       expect(lockButton).toBeDisabled();
+    }
+  });
+
+  it("aligns the current week using scroll-container coordinates", async () => {
+    postJsonMock.mockResolvedValue(buildContext([]));
+    const rect = (top: number, height = 96, width = 100): DOMRect => ({
+      top,
+      bottom: top + height,
+      left: 0,
+      right: width,
+      width,
+      height,
+      x: 0,
+      y: top,
+      toJSON: () => ({}),
+    });
+    const rectSpy = vi
+      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockImplementation(function (this: HTMLElement) {
+        if (this.classList.contains("overflow-y-auto")) {
+          return rect(500, 544, 800);
+        }
+        if (this.dataset.day === "2026-08-10") {
+          const container = this.closest<HTMLElement>(".overflow-y-auto");
+          return rect(1200 - (container?.scrollTop ?? 0));
+        }
+        return rect(0);
+      });
+    const offsetTopSpy = vi
+      .spyOn(HTMLElement.prototype, "offsetTop", "get")
+      .mockImplementation(function (this: HTMLElement) {
+        return this.dataset.day === "2026-08-10" ? 1000 : 0;
+      });
+    const originalScrollTo = HTMLElement.prototype.scrollTo;
+    Object.defineProperty(HTMLElement.prototype, "scrollTo", {
+      configurable: true,
+      writable: true,
+      value(this: HTMLElement, options: ScrollToOptions) {
+        this.scrollTop = options.top ?? 0;
+      },
+    });
+    const animationFrameSpy = vi
+      .spyOn(window, "requestAnimationFrame")
+      .mockImplementation((callback) => {
+        callback(0);
+        return 1;
+      });
+
+    try {
+      const { container } = render(
+        <CalendarSurface
+          activeTab="calendar"
+          month="2026-08"
+          selectedDay={null}
+          viewMode="month"
+          onMonthChange={vi.fn()}
+          onViewModeChange={vi.fn()}
+          onSelectedDayChange={vi.fn()}
+          onPlannerMutation={vi.fn()}
+        />
+      );
+
+      const scrollContainer = await waitFor(() => {
+        const element = container.querySelector<HTMLElement>(".overflow-y-auto");
+        expect(element).not.toBeNull();
+        return element as HTMLElement;
+      });
+
+      await waitFor(() => {
+        expect(scrollContainer.scrollTop).toBe(700);
+      });
+    } finally {
+      animationFrameSpy.mockRestore();
+      if (originalScrollTo) {
+        HTMLElement.prototype.scrollTo = originalScrollTo;
+      } else {
+        Reflect.deleteProperty(HTMLElement.prototype, "scrollTo");
+      }
+      offsetTopSpy.mockRestore();
+      rectSpy.mockRestore();
     }
   });
 });
