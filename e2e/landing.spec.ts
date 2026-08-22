@@ -9,7 +9,7 @@ test.describe("marketing landing", () => {
 
     await expect(
       page.getByRole("heading", {
-        name: /plan your goals, execute daily, and see real momentum/i,
+        name: /achieve your goals using one focused system/i,
       })
     ).toBeVisible();
 
@@ -23,6 +23,15 @@ test.describe("marketing landing", () => {
       "href",
       "/app"
     );
+    await expect(page.getByRole("link", { name: "Read story" })).toHaveAttribute(
+      "href",
+      "#why-goalmaxxing"
+    );
+    await expect(
+      page.getByRole("heading", {
+        name: "Most productivity apps stop at today.",
+      })
+    ).toBeVisible();
     await expect(
       page.getByRole("navigation", { name: "Main navigation" })
     ).toHaveCount(0);
