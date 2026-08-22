@@ -6,7 +6,7 @@ import { PlannerPageShell } from "./planner-page-shell";
 let mockSearch = "";
 
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/calendar",
+  usePathname: () => "/app/calendar",
   useSearchParams: () => new URLSearchParams(mockSearch),
 }));
 
@@ -35,7 +35,7 @@ describe("PlannerPageShell", () => {
     await user.click(screen.getByRole("tab", { name: "Calendar" }));
 
     expect(pushStateSpy.mock.calls.at(-1)?.[2]).toBe(
-      "/calendar?surface=calendar"
+      "/app/calendar?surface=calendar"
     );
   });
 

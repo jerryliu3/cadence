@@ -3,6 +3,8 @@ import { defineConfig, devices } from "@playwright/test";
 const port = process.env.PLAYWRIGHT_PORT ?? "3100";
 const baseURL =
   process.env.PLAYWRIGHT_BASE_URL ?? `http://localhost:${port}`;
+const webServerUrl =
+  process.env.PLAYWRIGHT_WEB_SERVER_URL ?? `${baseURL}/login`;
 const authStatePath = "playwright/.auth/alice.json";
 
 export default defineConfig({
@@ -58,7 +60,7 @@ export default defineConfig({
     command: process.env.CI
       ? `pnpm exec next start --hostname 127.0.0.1 --port ${port}`
       : `pnpm exec next dev --hostname 127.0.0.1 --port ${port}`,
-    url: baseURL,
+    url: webServerUrl,
     reuseExistingServer: false,
     timeout: 120_000,
     env: {

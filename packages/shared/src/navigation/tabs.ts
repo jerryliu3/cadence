@@ -13,10 +13,10 @@ export interface AppTabDefinition {
 }
 
 const TAB_BY_KEY: Record<AppTabKey, AppTabDefinition> = {
-  insights: { key: "insights", href: "/insights", label: "Insights" },
-  calendar: { key: "calendar", href: "/calendar", label: "Planner" },
-  social: { key: "social", href: "/social", label: "Community" },
-  settings: { key: "settings", href: "/settings", label: "Profile" },
+  insights: { key: "insights", href: "/app/insights", label: "Insights" },
+  calendar: { key: "calendar", href: "/app/calendar", label: "Planner" },
+  social: { key: "social", href: "/app/social", label: "Community" },
+  settings: { key: "settings", href: "/app/settings", label: "Profile" },
 };
 
 export const DEFAULT_PLANNER_PRIMARY_TAB_PREFERENCE: PlannerPrimaryTabPreference =

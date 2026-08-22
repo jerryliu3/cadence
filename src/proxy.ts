@@ -4,7 +4,7 @@ import { updateSession } from "@/lib/supabase/proxy";
 export async function proxy(request: NextRequest) {
   if (request.nextUrl.pathname === "/" && request.nextUrl.search.length === 0) {
     const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = "/calendar";
+    redirectUrl.pathname = "/app/calendar";
     return NextResponse.redirect(redirectUrl);
   }
 

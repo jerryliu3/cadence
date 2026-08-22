@@ -29,7 +29,7 @@ describe("XpProgressBar", () => {
     expect(screen.getByText("220 / 400 XP to Lv 3")).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "Open achievements and XP details" })
-    ).toHaveAttribute("href", "/achievements");
+    ).toHaveAttribute("href", "/app/achievements");
     expect(container.querySelector("[data-xp-reward-target='true']")).not.toBeNull();
   });
 });

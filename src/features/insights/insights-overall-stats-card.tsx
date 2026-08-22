@@ -188,7 +188,7 @@ export function InsightsOverallStatsCard({
             </div>
             {showMoreLink ? (
               <div className="text-right text-sm">
-                <Link href="/insights/more" className="font-medium text-primary hover:underline">
+                <Link href="/app/insights/more" className="font-medium text-primary hover:underline">
                   View more -&gt;
                 </Link>
               </div>

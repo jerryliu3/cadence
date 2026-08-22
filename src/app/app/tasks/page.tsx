@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
 export default function TasksPage() {
-  redirect("/calendar?surface=tasks");
+  redirect("/app/calendar?surface=tasks");
 }

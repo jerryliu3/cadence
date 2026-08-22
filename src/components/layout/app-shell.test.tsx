@@ -73,14 +73,14 @@ describe("AppShell", () => {
     );
 
     const newGoalLink = screen.getByRole("link", { name: /new goal \+/i });
-    expect(newGoalLink).toHaveAttribute("href", "/goals/new?returnTo=%2F");
+    expect(newGoalLink).toHaveAttribute("href", "/app/goals/new?returnTo=%2F");
     expect(newGoalLink).toHaveClass("h-8");
     expect(newGoalLink).toHaveClass("bg-primary");
     expect(newGoalLink).toHaveClass("text-white");
   });
 
   it("includes the current route in the new goal returnTo query", () => {
-    mockPathname = "/social";
+    mockPathname = "/app/social";
     mockSearch = "tab=challenges&sort=recent";
 
     render(
@@ -92,7 +92,7 @@ describe("AppShell", () => {
     const newGoalLink = screen.getByRole("link", { name: /new goal \+/i });
     expect(newGoalLink).toHaveAttribute(
       "href",
-      "/goals/new?returnTo=%2Fsocial%3Ftab%3Dchallenges%26sort%3Drecent"
+      "/app/goals/new?returnTo=%2Fapp%2Fsocial%3Ftab%3Dchallenges%26sort%3Drecent"
     );
   });
 

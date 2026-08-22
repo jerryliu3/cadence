@@ -74,8 +74,8 @@ function shiftScopeMonth(scopeMonth: string, delta: number) {
 
 async function openCalendar(page: Page, scopeMonth?: string) {
   const query = scopeMonth
-    ? `/calendar?surface=calendar&view=month&month=${scopeMonth}`
-    : "/calendar?surface=calendar&view=month";
+    ? `/app/calendar?surface=calendar&view=month&month=${scopeMonth}`
+    : "/app/calendar?surface=calendar&view=month";
   await page.goto(query);
   await expect(page).toHaveURL(/\/calendar/);
   await waitForCalendarReady(page);
@@ -483,7 +483,7 @@ test.describe("planner critical rails", () => {
 
   // Serial retries restart the whole group; keep each attempt free of leftover draft UI.
   test.beforeEach(async ({ page }) => {
-    await page.goto("/checklist?tab=today");
+    await page.goto("/app/checklist?tab=today");
     await expect(
       page.getByRole("navigation", { name: "Main navigation" })
     ).toBeVisible();
@@ -622,7 +622,7 @@ test.describe("planner critical rails", () => {
 
   test("completion toggle dispatches from today surface", async ({ page }) => {
     test.setTimeout(120_000);
-    await page.goto("/checklist?tab=today");
+    await page.goto("/app/checklist?tab=today");
     const initialButton = page.locator(COMPLETION_TOGGLE_SELECTOR).first();
     await expect(initialButton).toBeVisible();
     await expect(initialButton).toBeEnabled();
@@ -635,7 +635,7 @@ test.describe("planner critical rails", () => {
 
   test("completion toggle dispatches from past tab surface", async ({ page }) => {
     test.setTimeout(120_000);
-    await page.goto("/checklist?tab=past");
+    await page.goto("/app/checklist?tab=past");
     const pastToggle = page.locator(COMPLETION_TOGGLE_SELECTOR).first();
     await expect(pastToggle).toBeVisible({ timeout: 10_000 });
     await expect(pastToggle).toBeEnabled();

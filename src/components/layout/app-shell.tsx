@@ -53,7 +53,7 @@ export function AppShell({
   const searchParams = useSearchParams();
   const search = searchParams.toString();
   const returnTo = search.length > 0 ? `${pathname}?${search}` : pathname;
-  const newGoalHref = `/goals/new?returnTo=${encodeURIComponent(returnTo)}`;
+  const newGoalHref = `/app/goals/new?returnTo=${encodeURIComponent(returnTo)}`;
   const mainContent = (
     <main className="relative z-10 pb-[calc(6.5rem+env(safe-area-inset-bottom))] md:pb-0">
       {children}

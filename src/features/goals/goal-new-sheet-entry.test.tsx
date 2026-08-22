@@ -53,13 +53,13 @@ describe("GoalNewSheetEntry", () => {
   });
 
   it("returns to the route from returnTo when save completes", async () => {
-    mockSearch = "returnTo=%2Fsocial%3Ftab%3Dchallenges";
+    mockSearch = "returnTo=%2Fapp%2Fsocial%3Ftab%3Dchallenges";
     const user = userEvent.setup();
 
     render(<GoalNewSheetEntry />);
     await user.click(screen.getByRole("button", { name: "Save goal" }));
 
-    expect(routerMock.replace).toHaveBeenCalledWith("/social?tab=challenges");
+    expect(routerMock.replace).toHaveBeenCalledWith("/app/social?tab=challenges");
     expect(routerMock.refresh).toHaveBeenCalledTimes(1);
     expect(routerMock.back).not.toHaveBeenCalled();
   });
@@ -76,13 +76,13 @@ describe("GoalNewSheetEntry", () => {
   });
 
   it("dismisses to returnTo when present", async () => {
-    mockSearch = "returnTo=%2Fcalendar";
+    mockSearch = "returnTo=%2Fapp%2Fcalendar";
     const user = userEvent.setup();
 
     render(<GoalNewSheetEntry />);
     await user.click(screen.getByRole("button", { name: "Dismiss" }));
 
-    expect(routerMock.replace).toHaveBeenCalledWith("/calendar");
+    expect(routerMock.replace).toHaveBeenCalledWith("/app/calendar");
     expect(routerMock.back).not.toHaveBeenCalled();
     expect(routerMock.refresh).not.toHaveBeenCalled();
   });

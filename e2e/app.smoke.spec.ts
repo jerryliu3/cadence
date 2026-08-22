@@ -2,7 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
 test("loads the seeded authenticated planner shell", async ({ page }, testInfo) => {
-  await page.goto("/");
+  await page.goto("/app");
 
   const mainNav = page.getByRole("navigation", { name: "Main navigation" });
   await expect(
@@ -38,7 +38,7 @@ test("explicit Calendar surface does not eagerly load checklist context", async 
     await route.continue();
   });
 
-  await page.goto("/calendar?surface=calendar");
+  await page.goto("/app/calendar?surface=calendar");
   await expect(page.getByRole("navigation", { name: "Main navigation" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Planner" })).toBeVisible();
   await expect(page).toHaveURL(/\/calendar/);
@@ -49,7 +49,7 @@ test("explicit Calendar surface does not eagerly load checklist context", async 
 test("legacy day links redirect into calendar route", async ({
   page,
 }) => {
-  await page.goto("/?day=2026-08-04");
+  await page.goto("/app?day=2026-08-04");
   await expect(page).toHaveURL(/\/calendar/);
   await expect(page).toHaveURL(/month=2026-08/);
 });
@@ -57,7 +57,7 @@ test("legacy day links redirect into calendar route", async ({
 test("login surface has no detectable WCAG A/AA violations", async ({
   page,
 }) => {
-  await page.goto("/");
+  await page.goto("/app");
   await page.context().clearCookies();
   await page.evaluate(() => window.localStorage.clear());
   await page.goto("/login");

@@ -2,12 +2,12 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    id: "/",
+    id: "/app",
     name: "Goalmaxxing",
     short_name: "Goalmaxxing",
     description: "Personal goal tracking with insights and social accountability.",
-    start_url: "/",
-    scope: "/",
+    start_url: "/app",
+    scope: "/app",
     display: "standalone",
     background_color: "#fafafa",
     theme_color: "#2563eb",
