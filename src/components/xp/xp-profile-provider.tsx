@@ -172,11 +172,24 @@ export function XpProfileProvider({ children }: { children: ReactNode }) {
   );
 
   useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
+    const runLoad = () => {
       void loadProfile();
-    }, 0);
+    };
+    const supportsIdleCallback = typeof window.requestIdleCallback === "function";
+    const idleCallbackId = supportsIdleCallback
+      ? window.requestIdleCallback(runLoad, { timeout: 1_000 })
+      : null;
+    const timeoutId = supportsIdleCallback
+      ? null
+      : window.setTimeout(runLoad, 0);
+
     return () => {
-      window.clearTimeout(timeoutId);
+      if (idleCallbackId !== null) {
+        window.cancelIdleCallback(idleCallbackId);
+      }
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
     };
   }, [loadProfile]);
 

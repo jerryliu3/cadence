@@ -218,86 +218,99 @@ export async function GET(request: Request) {
         ? await resolveActiveTeamPartner({ supabase })
         : null;
 
-    const goals: Goal[] = [];
-    let lastGoalId: string | null = null;
-    for (;;) {
-      let query = supabase
-        .from("goals")
-        .select("*")
-        .eq("is_deleted", false)
-        .order("id")
-        .limit(PAGE_SIZE);
-      if (!isViewerSubject) {
-        query = query.eq("owner_id", subjectUserId);
-      }
-      if (lastGoalId) {
-        query = query.gt("id", lastGoalId);
-      }
-      const response = await query;
-      if (response.error) {
-        throw new ApiRouteError(
-          500,
-          "progress_load_failed",
-          "Goal progress could not be loaded."
-        );
-      }
-      const page = (response.data ?? []) as Goal[];
-      const visiblePage = isViewerSubject
-        ? selectViewerVisibleGoals({
-            goals: page,
-            partnerId: activePartner?.partnerId ?? null,
-            memberTeamIds: activePartner?.teamId ? [activePartner.teamId] : [],
-          })
-        : page;
-      goals.push(...visiblePage);
-      if (goals.length > MAX_PROGRESS_GOALS) {
-        throw new ApiRouteError(
-          413,
-          "goal_bound_exceeded",
-          "Too many goals are available for one progress context."
-        );
-      }
-      if (page.length < PAGE_SIZE) {
-        break;
-      }
-      lastGoalId = page.at(-1)?.id ?? null;
-    }
-
-    const completions: Completion[] = [];
-    let lastCompletionId: string | null = null;
-    for (;;) {
-      let query = supabase
-        .from("completions")
-        .select("*")
-        .eq("user_id", subjectUserId)
-        .order("id")
-        .limit(PAGE_SIZE);
-      if (lastCompletionId) {
-        query = query.gt("id", lastCompletionId);
-      }
-      const response = await query;
-      if (response.error) {
-        throw new ApiRouteError(
-          500,
-          "progress_load_failed",
-          "Goal progress could not be loaded."
-        );
+    const loadVisibleGoals = async (): Promise<Goal[]> => {
+      const goals: Goal[] = [];
+      let lastGoalId: string | null = null;
+      for (;;) {
+        let query = supabase
+          .from("goals")
+          .select("*")
+          .eq("is_deleted", false)
+          .order("id")
+          .limit(PAGE_SIZE);
+        if (!isViewerSubject) {
+          query = query.eq("owner_id", subjectUserId);
+        }
+        if (lastGoalId) {
+          query = query.gt("id", lastGoalId);
+        }
+        const response = await query;
+        if (response.error) {
+          throw new ApiRouteError(
+            500,
+            "progress_load_failed",
+            "Goal progress could not be loaded."
+          );
+        }
+        const page = (response.data ?? []) as Goal[];
+        const visiblePage = isViewerSubject
+          ? selectViewerVisibleGoals({
+              goals: page,
+              partnerId: activePartner?.partnerId ?? null,
+              memberTeamIds: activePartner?.teamId ? [activePartner.teamId] : [],
+            })
+          : page;
+        goals.push(...visiblePage);
+        if (goals.length > MAX_PROGRESS_GOALS) {
+          throw new ApiRouteError(
+            413,
+            "goal_bound_exceeded",
+            "Too many goals are available for one progress context."
+          );
+        }
+        if (page.length < PAGE_SIZE) {
+          break;
+        }
+        lastGoalId = page.at(-1)?.id ?? null;
       }
 
-      const page = (response.data ?? []) as Completion[];
-      completions.push(...page);
-      if (completions.length > MAX_COMPLETION_FACTS) {
-        throw new ApiRouteError(
-          413,
-          "completion_bound_exceeded",
-          "Completion history exceeds the supported progress bound."
-        );
+      return goals;
+    };
+
+    const loadCompletions = async (): Promise<Completion[]> => {
+      const completions: Completion[] = [];
+      let lastCompletionId: string | null = null;
+      for (;;) {
+        let query = supabase
+          .from("completions")
+          .select("*")
+          .eq("user_id", subjectUserId)
+          .order("id")
+          .limit(PAGE_SIZE);
+        if (lastCompletionId) {
+          query = query.gt("id", lastCompletionId);
+        }
+        const response = await query;
+        if (response.error) {
+          throw new ApiRouteError(
+            500,
+            "progress_load_failed",
+            "Goal progress could not be loaded."
+          );
+        }
+
+        const page = (response.data ?? []) as Completion[];
+        completions.push(...page);
+        if (completions.length > MAX_COMPLETION_FACTS) {
+          throw new ApiRouteError(
+            413,
+            "completion_bound_exceeded",
+            "Completion history exceeds the supported progress bound."
+          );
+        }
+        if (page.length < PAGE_SIZE) {
+          break;
+        }
+        lastCompletionId = page.at(-1)?.id ?? null;
       }
-      if (page.length < PAGE_SIZE) {
-        break;
-      }
-      lastCompletionId = page.at(-1)?.id ?? null;
-    }
+
+      return completions;
+    };
+
+    const [goals, completions] = await Promise.all([
+      loadVisibleGoals(),
+      loadCompletions(),
+    ]);
 
     const completionsByGoal = groupCompletions(completions);
     const visibleGoalIds = new Set(goals.map((goal) => goal.id));
