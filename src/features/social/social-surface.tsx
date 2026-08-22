@@ -75,7 +75,12 @@ export function SocialSurface({
   }, [activeTab, refreshActiveTab]);
 
   useEffect(() => {
-    triggerGlobalRefresh();
+    const timeoutId = window.setTimeout(() => {
+      triggerGlobalRefresh();
+    }, 0);
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
   }, [triggerGlobalRefresh]);
 
   useEffect(() => {
