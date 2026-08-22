@@ -93,7 +93,7 @@ export function AppShell({
                         <Button
                           asChild
                           size="sm"
-                          className="h-8 text-white hover:text-white"
+                          className="h-8 bg-primary text-white hover:bg-primary/80 hover:text-white"
                           title="New Goal +"
                         >
                           <Link href={newGoalHref}>

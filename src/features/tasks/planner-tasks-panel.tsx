@@ -28,11 +28,12 @@ interface PlannerTaskRow {
 
 interface PlannerTasksPanelProps {
   title?: string;
-  description?: string;
+  description?: string | null;
   scheduledDate?: string | null;
   showScheduledDate?: boolean;
   allowCreate?: boolean;
   allowDelete?: boolean;
+  hideWhenEmpty?: boolean;
 }
 
 export function PlannerTasksPanel({
@@ -42,6 +43,7 @@ export function PlannerTasksPanel({
   showScheduledDate = false,
   allowCreate = true,
   allowDelete = false,
+  hideWhenEmpty = false,
 }: PlannerTasksPanelProps) {
   const supabase = useMemo(() => createClient(), []);
   const [tasks, setTasks] = useState<PlannerTaskRow[]>([]);
@@ -166,11 +168,15 @@ export function PlannerTasksPanel({
     [allowDelete]
   );
 
+  if (hideWhenEmpty && !loading && tasks.length === 0) {
+    return null;
+  }
+
   return (
     <Card className="shadow-sm">
       <CardHeader className="space-y-2">
         <CardTitle>{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
+        {description ? <CardDescription>{description}</CardDescription> : null}
         {allowCreate ? (
           <div className="flex gap-2">
             <Input

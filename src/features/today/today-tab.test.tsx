@@ -44,8 +44,10 @@ describe("TodayTab task panel wiring", () => {
     expect(screen.getByTestId("planner-tasks-panel")).toBeInTheDocument();
     expect(plannerTasksPanelMock).toHaveBeenCalledTimes(1);
     expect(plannerTasksPanelMock.mock.calls[0]?.[0]).toMatchObject({
-      title: "Tasks for this day",
+      title: "Tasks",
+      description: null,
       allowCreate: false,
+      hideWhenEmpty: true,
     });
   });
 });
