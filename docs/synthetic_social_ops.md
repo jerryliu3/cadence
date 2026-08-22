@@ -43,6 +43,30 @@ select public.provision_synthetic_users_service(100, 6);
 
 The function is idempotent and keeps deterministic identities while extending the synthetic population.
 
+## Admin roster
+
+Use `public.admin_synthetic_users` to inspect and mutate synthetic accounts from the SQL editor or the `/admin/synthetic-users` dashboard.
+
+```sql
+select *
+from public.admin_synthetic_users
+order by username;
+
+update public.admin_synthetic_users
+set enabled = false,
+    persona = 'low',
+    daily_budget = 1
+where username = 'noah_nguyen';
+
+delete from public.admin_synthetic_users
+where username = 'noah_nguyen';
+```
+
+`DELETE` disables the row (`enabled = false`). It does not remove the auth user, profile, or goals.
+
+Mutable fields: `username`, `display_name`, `social_activity_visible`, `persona`, `archetype`, `daily_budget`, `enabled`.
+Read-only fields: `user_id`, `completions_today`, `last_active_date`, `goal_count`, `created_at`, `updated_at`.
+
 ## Disable Options
 
 Pause all synthetic activity immediately:
