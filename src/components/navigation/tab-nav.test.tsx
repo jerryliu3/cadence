@@ -47,6 +47,9 @@ describe("TabNav", () => {
       "aria-current",
       "page"
     );
+    expect(screen.getByRole("link", { name: /Community/i })).toHaveClass(
+      "text-white"
+    );
     expect(container.querySelectorAll("[data-motion='tab-nav-highlight']")).toHaveLength(1);
   });
 

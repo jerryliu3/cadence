@@ -93,10 +93,10 @@ export function PlannerSettingsForm({
               type="button"
               variant="outline"
               onClick={onRecover}
-              title="Re-place uncompleted sessions left behind in the past"
+              title="Recover missed activities that were left behind in the past"
               disabled={recoverLoading || loading || saveLoading || !canRecoverPastSessions}
             >
-              {recoverLoading ? "Recovering..." : "Recover"}
+              {recoverLoading ? "Recovering missed activities..." : "Recover missed activities"}
             </Button>
             <Button
               type="button"

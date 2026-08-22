@@ -90,7 +90,12 @@ export function AppShell({
                         <XpProgressBar />
                       </div>
                       <div className="flex flex-col items-end gap-2">
-                        <Button asChild size="sm" className="h-8" title="New Goal +">
+                        <Button
+                          asChild
+                          size="sm"
+                          className="h-8 text-white hover:text-white"
+                          title="New Goal +"
+                        >
                           <Link href={newGoalHref}>
                             New Goal +
                           </Link>
