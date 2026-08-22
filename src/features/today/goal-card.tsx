@@ -119,7 +119,7 @@ export function GoalCard({
           ) : null}
           {completionSourceForSelectedDate === "linked_cascade" ? (
             <Badge variant="outline" className="h-4 px-1 text-[10px]">
-              Linked
+              Auto-completed
             </Badge>
           ) : null}
         </div>

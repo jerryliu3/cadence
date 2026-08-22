@@ -50,7 +50,7 @@ export function GoalLinkTargetSelect({
     <div className="space-y-2">
       <Label className="inline-flex items-center gap-2">
         <Link2 className="size-4 text-muted-foreground" />
-        Link this goal to another goal
+        Make this a subgoal linked to...
       </Label>
       <Select
         value={value}
@@ -59,19 +59,19 @@ export function GoalLinkTargetSelect({
         onOpenChange={onOpenChange}
       >
         <SelectTrigger>
-          <SelectValue placeholder="No linked target" />
+          <SelectValue placeholder="None" />
         </SelectTrigger>
         <SelectContent>
           <div className="sticky top-0 z-10 border-b bg-popover p-1.5">
             <Input
               value={searchQuery}
               onChange={(event) => onSearchQueryChange(event.target.value)}
-              placeholder="Search link targets..."
+              placeholder="Choose a main goal"
               className="h-8"
               onKeyDown={(event) => event.stopPropagation()}
             />
           </div>
-          <SelectItem value="none">No linked target</SelectItem>
+          <SelectItem value="none">None</SelectItem>
           {filteredLinkTargets.map((goal) => (
             <SelectItem
               key={keyPrefix ? `${keyPrefix}-${goal.id}` : goal.id}
@@ -90,12 +90,13 @@ export function GoalLinkTargetSelect({
         </SelectContent>
       </Select>
       <p className="text-xs text-muted-foreground">
-        Marking this goal complete will auto-complete linked goals for the same day.
+        Completing this subgoal also counts toward its linked main goal for that day.
       </p>
       {value !== "none" && selectedTargetGoal ? (
         <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 dark:border-amber-400/50 dark:bg-amber-500/10 dark:text-amber-100">
           <p className="font-medium">
-            Linking to {selectedTargetGoal.title} affects calendar visibility.
+            Linking this subgoal to {selectedTargetGoal.title} may hide that main goal in
+            some calendar months.
           </p>
           <p className="mt-1">{linkedTargetSchedulingNotice}</p>
         </div>

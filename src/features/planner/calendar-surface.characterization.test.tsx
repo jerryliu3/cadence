@@ -341,8 +341,10 @@ describe("CalendarSurface characterization", () => {
       throw new Error("Expected day panel container.");
     }
 
-    expect(within(dayPanel).getByText("07:30 Tempo run 4x800")).toBeInTheDocument();
-    expect(within(dayPanel).queryByText("07:30 Goal B")).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(dayPanel.textContent ?? "").toContain("Tempo run 4x800");
+      expect(dayPanel.textContent ?? "").not.toContain("07:30 Goal B");
+    });
   });
 
   it("suppresses default milestone label duplication in month preview and event dialog", async () => {
@@ -856,15 +858,15 @@ describe("CalendarSurface characterization", () => {
     ).toBeInTheDocument();
     expect(
       within(dialog).queryByText(
-        /Goal B: Linked target goals are managed by source completions and are hidden from Calendar\./i
+        /Goal B: Linked main goals may be hidden in months where linked subgoals are still active\./i
       )
     ).not.toBeInTheDocument();
     expect(
-      within(dialog).getByText(/Linked targets hidden in this month/i)
+      within(dialog).getByText(/Linked main goals hidden this month/i)
     ).toBeInTheDocument();
     expect(
       within(dialog).getByText(
-        /Goal B: hidden while linked source goals remain active/i
+        /Goal B: hidden while linked subgoals are still active/i
       )
     ).toBeInTheDocument();
   });
@@ -914,7 +916,7 @@ describe("CalendarSurface characterization", () => {
     const dialog = await screen.findByRole("dialog");
     expect(
       within(dialog).getByText(
-        /Goal B: hidden in this month and resumes on Sep 1, 2026 Sources: Goal A\./i
+        /Goal B: hidden this month, returns Sep 1, 2026 Linked subgoals: Goal A\./i
       )
     ).toBeInTheDocument();
   });

@@ -189,7 +189,7 @@ export function CalendarDayPreviewList<
                             {entry.hasLinkedTargets ? (
                               <Link2
                                 className="size-3 shrink-0 text-muted-foreground"
-                                aria-label="Links to target goals"
+                                aria-label="Links this subgoal to a main goal"
                               />
                             ) : null}
                           </span>

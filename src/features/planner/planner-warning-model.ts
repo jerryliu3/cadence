@@ -46,11 +46,11 @@ export function selectPlannerWarningModel({
   const plannerWarningBannerCopy =
     plannerWarningSeverity === "actionable"
       ? "Some goals need updates before the calendar can be fully scheduled."
-      : `${eligibilityNotices.linkedTargetCount} linked target goal${
+      : `${eligibilityNotices.linkedTargetCount} linked main goal${
           eligibilityNotices.linkedTargetCount === 1 ? "" : "s"
         } ${
           eligibilityNotices.linkedTargetCount === 1 ? "is" : "are"
-        } hidden in this month while source goals remain active.`;
+        } hidden this month while linked subgoals are still active.`;
 
   return {
     warningSuggestedNextSteps,
