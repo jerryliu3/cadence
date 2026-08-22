@@ -29,6 +29,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { requestJourneyIntroOpen } from "@/components/intro/journey-intro-overlay";
+import { STARTER_PACKS } from "@/features/goals/starter-packs";
 import { TabOnboardingOverlay } from "@/features/onboarding/tab-onboarding-overlay";
 import {
   TAB_ONBOARDING_REPLAY_LINKS,
@@ -165,16 +166,13 @@ export function SocialTab() {
                       <Link href={link.href}>{link.label}</Link>
                     </Button>
                   ))}
-                  <Button type="button" variant="outline" size="sm" asChild>
-                    <Link href="/goals/new?mode=multi&starterPack=health">
-                      Open Health starter pack
-                    </Link>
-                  </Button>
-                  <Button type="button" variant="outline" size="sm" asChild>
-                    <Link href="/goals/new?mode=multi&starterPack=fitness">
-                      Open Fitness starter pack
-                    </Link>
-                  </Button>
+                  {STARTER_PACKS.map((pack) => (
+                    <Button key={pack.key} type="button" variant="outline" size="sm" asChild>
+                      <Link href={`/goals/new?mode=multi&starterPack=${pack.key}`}>
+                        Open {pack.label} starter pack
+                      </Link>
+                    </Button>
+                  ))}
                   <Button
                     type="button"
                     variant="ghost"

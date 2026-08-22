@@ -3,6 +3,7 @@
 -- alice@example.com / password123
 -- bob@example.com / password123
 -- carla@example.com / password123
+-- dana@example.com / password123 (onboarding demo account)
 
 truncate table
   public.feed_reactions,
@@ -100,6 +101,25 @@ values
     '{"username":"carla","display_name":"Carla"}',
     now(),
     now()
+  ),
+  (
+    '44444444-4444-4444-8444-444444444444',
+    '00000000-0000-0000-0000-000000000000',
+    'authenticated',
+    'authenticated',
+    'dana@example.com',
+    crypt('password123', gen_salt('bf')),
+    now(),
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '{"provider":"email","providers":["email"]}',
+    '{"username":"dana","display_name":"Dana","seed_default_goals":true}',
+    now(),
+    now()
   )
 on conflict (id) do update
 set
@@ -156,6 +176,16 @@ values
     now(),
     now(),
     now()
+  ),
+  (
+    '44444444-4444-4444-8444-444444444444',
+    '44444444-4444-4444-8444-444444444444',
+    '{"sub":"44444444-4444-4444-8444-444444444444","email":"dana@example.com"}',
+    'email',
+    'dana@example.com',
+    now(),
+    now(),
+    now()
   )
 on conflict (id) do update
 set
@@ -182,7 +212,8 @@ insert into public.profiles (
 values
   ('11111111-1111-4111-8111-111111111111', 'alice', 'Alice Park', null, 'UTC', '2026-01-01T00:00:00Z'),
   ('22222222-2222-4222-8222-222222222222', 'bob', 'Bob Chen', null, 'UTC', '2026-01-01T00:00:00Z'),
-  ('33333333-3333-4333-8333-333333333333', 'carla', 'Carla Diaz', null, 'UTC', '2026-01-01T00:00:00Z')
+  ('33333333-3333-4333-8333-333333333333', 'carla', 'Carla Diaz', null, 'UTC', '2026-01-01T00:00:00Z'),
+  ('44444444-4444-4444-8444-444444444444', 'dana', 'Dana Singh', null, 'UTC', '2026-01-01T00:00:00Z')
 on conflict (id) do update
 set
   username = excluded.username,
@@ -528,6 +559,101 @@ set
   archived_at = excluded.archived_at,
   updated_at = now();
 
+with onboarding_defaults as (
+  select *
+  from (
+    values
+      (
+        '10000000-0000-4000-8000-000000000031'::uuid,
+        'Create your Goalmaxxing account'::text,
+        'Complete profile basics and confirm your planner preferences.'::text,
+        'Personal'::text,
+        'personal'::text,
+        '#6366f1'::text,
+        current_date,
+        current_date,
+        array['Account setup complete']::text[]
+      ),
+      (
+        '10000000-0000-4000-8000-000000000032'::uuid,
+        'Create your first goal'::text,
+        'Use New Goal + to add one real goal you want to complete this week.'::text,
+        'Personal'::text,
+        'personal'::text,
+        '#6366f1'::text,
+        current_date,
+        current_date + 1,
+        array['First goal created']::text[]
+      ),
+      (
+        '10000000-0000-4000-8000-000000000033'::uuid,
+        'Invite your first teammate'::text,
+        'Open Community Team and send one partner invite.'::text,
+        'Relationships'::text,
+        'relationships'::text,
+        '#f43f5e'::text,
+        current_date,
+        current_date + 7,
+        array['Team invite sent']::text[]
+      )
+  ) as defaults (
+    id,
+    title,
+    description,
+    category,
+    category_key,
+    color,
+    start_date,
+    end_date,
+    milestone_names
+  )
+)
+insert into public.goals (
+  id,
+  owner_id,
+  title,
+  description,
+  category,
+  category_key,
+  color,
+  frequency_type,
+  recurrence_interval,
+  target_count,
+  milestone_names,
+  start_date,
+  end_date,
+  team_id,
+  is_private,
+  difficulty,
+  is_deleted
+)
+select
+  defaults.id,
+  '44444444-4444-4444-8444-444444444444',
+  defaults.title,
+  defaults.description,
+  defaults.category,
+  defaults.category_key,
+  defaults.color,
+  'fixed_milestones'::public.goal_frequency_type,
+  null,
+  1,
+  defaults.milestone_names,
+  defaults.start_date,
+  defaults.end_date,
+  null,
+  false,
+  'easy'::public.goal_difficulty,
+  false
+from onboarding_defaults defaults
+where not exists (
+  select 1
+  from public.goals goal
+  where goal.owner_id = '44444444-4444-4444-8444-444444444444'
+    and goal.title = defaults.title
+    and goal.is_deleted = false
+);
+
 insert into public.goal_links (owner_id, source_goal_id, target_goal_id)
 values
   ('11111111-1111-4111-8111-111111111111', '10000000-0000-4000-8000-000000000003', '10000000-0000-4000-8000-000000000004'),
@@ -613,7 +739,8 @@ set social_activity_visible = true
 where profile.id in (
   '11111111-1111-4111-8111-111111111111',
   '22222222-2222-4222-8222-222222222222',
-  '33333333-3333-4333-8333-333333333333'
+  '33333333-3333-4333-8333-333333333333',
+  '44444444-4444-4444-8444-444444444444'
 );
 
 insert into public.cohorts (
@@ -668,6 +795,15 @@ values
     null,
     now() - interval '1 day',
     null
+  ),
+  (
+    '71000000-0000-4000-8000-000000000003',
+    '11111111-1111-4111-8111-111111111111',
+    'pending',
+    'Invite sent to Dana for onboarding verification.',
+    null,
+    now() - interval '4 hours',
+    null
   );
 
 insert into public.team_members (team_id, user_id, role, joined_at)
@@ -695,6 +831,18 @@ values
     '11111111-1111-4111-8111-111111111111',
     'member',
     now() - interval '1 day'
+  ),
+  (
+    '71000000-0000-4000-8000-000000000003',
+    '11111111-1111-4111-8111-111111111111',
+    'initiator',
+    now() - interval '4 hours'
+  ),
+  (
+    '71000000-0000-4000-8000-000000000003',
+    '44444444-4444-4444-8444-444444444444',
+    'member',
+    now() - interval '4 hours'
   );
 
 -- Alice + Bob team-owned goal for Checklist / complete-as-member demos.

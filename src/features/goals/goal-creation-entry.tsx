@@ -5,6 +5,11 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  STARTER_PACKS,
+  type StarterPackKey,
+  resolveStarterPackKey,
+} from "@/features/goals/starter-packs";
 import { TrainingPlanImportEntry } from "@/features/goals/training-plan-import-entry";
 import { BulkGoalForm } from "@/features/today/bulk-goal-form";
 import { GoalForm } from "@/features/today/goal-form";
@@ -60,8 +65,8 @@ export function GoalCreationEntry({ onExit }: GoalCreationEntryProps) {
     return query.length > 0 ? `${pathname}?${query}` : pathname;
   };
 
-  const starterPack = searchParams.get("starterPack");
-  const starterPackHref = (pack: "health" | "fitness" | null) => {
+  const starterPack = resolveStarterPackKey(searchParams.get("starterPack"));
+  const starterPackHref = (pack: StarterPackKey | null) => {
     const params = new URLSearchParams(searchParams.toString());
     params.set("mode", "multi");
     if (pack) {
@@ -125,23 +130,20 @@ export function GoalCreationEntry({ onExit }: GoalCreationEntryProps) {
               <p className="text-sm font-medium">Starter packs (optional)</p>
               {starterPack ? (
                 <Badge variant="outline" className="capitalize">
-                  {starterPack} selected
+                  {STARTER_PACKS.find((pack) => pack.key === starterPack)?.label ?? starterPack} selected
                 </Badge>
               ) : (
                 <Badge variant="outline">Pick one to prefill drafts</Badge>
               )}
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <Button type="button" variant="outline" size="sm" asChild>
-                <Link href={starterPackHref("health")} replace>
-                  Health starter pack
-                </Link>
-              </Button>
-              <Button type="button" variant="outline" size="sm" asChild>
-                <Link href={starterPackHref("fitness")} replace>
-                  Fitness starter pack
-                </Link>
-              </Button>
+              {STARTER_PACKS.map((pack) => (
+                <Button key={pack.key} type="button" variant="outline" size="sm" asChild>
+                  <Link href={starterPackHref(pack.key)} replace>
+                    {pack.label} starter pack
+                  </Link>
+                </Button>
+              ))}
               {starterPack ? (
                 <Button type="button" variant="ghost" size="sm" asChild>
                   <Link href={starterPackHref(null)} replace>
