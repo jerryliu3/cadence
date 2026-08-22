@@ -127,13 +127,13 @@ describe("selectPlannerCalendarModel", () => {
   });
 
   it("projects additional days outside the visible window", () => {
-    const offscreenDay = "2026-10-10";
+    const offscreenDay = "2026-12-10";
     const context = buildPlannerContext({
       workUnits: [
         buildPlannerWorkUnit({
           originalGoalId: "goal-1",
           unitKey: "unit-offscreen",
-          scheduledDate: "2026-10-09",
+          scheduledDate: "2026-12-09",
           creditedCompletionDate: offscreenDay,
         }),
       ],
@@ -255,6 +255,7 @@ describe("selectPlannerCalendarModel", () => {
     }
 
     expect(model.dayAccessors.canMutateEntryOnDay(entry, "2026-08-25")).toBe(true);
-    expect(model.dayAccessors.canMutateEntryOnDay(entry, "2026-09-01")).toBe(false);
+    expect(model.dayAccessors.canMutateEntryOnDay(entry, "2026-09-01")).toBe(true);
+    expect(model.dayAccessors.canMutateEntryOnDay(entry, "2026-10-12")).toBe(false);
   });
 });

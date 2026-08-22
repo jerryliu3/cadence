@@ -1,4 +1,4 @@
-import { addDays, format, isValid, parse } from "date-fns";
+import { addDays, addMonths, format, isValid, parse } from "date-fns";
 import type { PlannerCalendarViewMode } from "@/features/planner/calendar-surface.types";
 import { buildMonthCells, type MonthCell } from "@/features/planner/month-cells";
 
@@ -11,6 +11,30 @@ export interface CalendarViewWindowProjection {
   focusedThreeDayDays: string[];
   focusedThreeDayCells: MonthCell[];
   visibleDays: string[];
+}
+
+export interface CalendarVisibleDateWindow {
+  start: string;
+  end: string;
+}
+
+export function buildCalendarVisibleDateWindow(
+  visibleDays: readonly string[]
+): CalendarVisibleDateWindow | null {
+  if (visibleDays.length === 0) {
+    return null;
+  }
+  let start = visibleDays[0];
+  let end = visibleDays[0];
+  for (const day of visibleDays) {
+    if (day < start) {
+      start = day;
+    }
+    if (day > end) {
+      end = day;
+    }
+  }
+  return { start, end };
 }
 
 export function buildFocusedWeekDays({
@@ -93,6 +117,84 @@ export function buildFocusedThreeDayCells({
   });
 }
 
+function buildMultiMonthCells({
+  month,
+  weekStartsOn,
+  monthsBefore,
+  monthsAfter,
+}: {
+  month: string;
+  weekStartsOn: number;
+  monthsBefore: number;
+  monthsAfter: number;
+}) {
+  const centerMonthDate = parse(`${month}-01`, "yyyy-MM-dd", new Date());
+  if (!isValid(centerMonthDate)) {
+    return buildMonthCells(month, weekStartsOn);
+  }
+  const rangeStartMonth = format(
+    addMonths(centerMonthDate, -monthsBefore),
+    "yyyy-MM"
+  );
+  const rangeEndMonth = format(
+    addMonths(centerMonthDate, monthsAfter),
+    "yyyy-MM"
+  );
+  const rangeStartCells = buildMonthCells(rangeStartMonth, weekStartsOn);
+  const rangeEndCells = buildMonthCells(rangeEndMonth, weekStartsOn);
+  const rangeStart = rangeStartCells[0]?.date;
+  const rangeEnd = rangeEndCells.at(-1)?.date;
+  if (!rangeStart || !rangeEnd) {
+    return [];
+  }
+  const rangeStartDate = parse(rangeStart, "yyyy-MM-dd", new Date());
+  const rangeEndDate = parse(rangeEnd, "yyyy-MM-dd", new Date());
+  if (!isValid(rangeStartDate) || !isValid(rangeEndDate)) {
+    return [];
+  }
+  const monthPrefix = `${month}-`;
+  const cells: MonthCell[] = [];
+  for (
+    let day = rangeStartDate;
+    day <= rangeEndDate;
+    day = addDays(day, 1)
+  ) {
+    const isoDay = format(day, "yyyy-MM-dd");
+    cells.push({
+      date: isoDay,
+      inMonth: isoDay.startsWith(monthPrefix),
+    });
+  }
+  return cells;
+}
+
+function buildViewModeCells({
+  month,
+  weekStartsOn,
+  viewMode,
+}: {
+  month: string | null;
+  weekStartsOn: number;
+  viewMode: PlannerCalendarViewMode;
+}) {
+  if (!month) {
+    return [];
+  }
+  switch (viewMode) {
+    case "month":
+      return buildMultiMonthCells({
+        month,
+        weekStartsOn,
+        monthsBefore: 1,
+        monthsAfter: 1,
+      });
+    case "week":
+    case "three_day":
+    case "day":
+      return buildMonthCells(month, weekStartsOn);
+  }
+}
+
 export function selectCalendarViewWindowProjection({
   month,
   selectedDay,
@@ -106,7 +208,11 @@ export function selectCalendarViewWindowProjection({
   weekStartsOn: number;
   viewMode: PlannerCalendarViewMode;
 }): CalendarViewWindowProjection {
-  const cells = month ? buildMonthCells(month, weekStartsOn) : [];
+  const cells = buildViewModeCells({
+    month,
+    weekStartsOn,
+    viewMode,
+  });
   const cellByDate = new Map(cells.map((cell) => [cell.date, cell] as const));
   const focusedDay = selectedDay ?? calendarToday;
   const focusedWeekDays = buildFocusedWeekDays({

@@ -205,8 +205,8 @@ describe("CalendarSurface characterization", () => {
     await waitFor(() => {
       expect(postJsonMock).toHaveBeenCalledWith("/api/planner/prepare", {
         scopeMonth: "2026-09",
-        visibleStart: "2026-08-01",
-        visibleEnd: "2026-10-31",
+        visibleStart: "2026-07-27",
+        visibleEnd: "2026-11-08",
       });
     });
 
@@ -217,6 +217,45 @@ describe("CalendarSurface characterization", () => {
     expect(dayCell).not.toHaveAccessibleName(
       expect.stringContaining("2 planned items")
     );
+  });
+
+  it("renders a month-scoped vertical window with previous and next month rows", async () => {
+    postJsonMock.mockResolvedValue(
+      buildContext([
+        unit({
+          originalGoalId: "goal-a",
+          unitKey: "total:1",
+          scheduledDate: "2026-08-20",
+        }),
+      ])
+    );
+
+    render(
+      <CalendarSurface
+        activeTab="calendar"
+        month="2026-08"
+        selectedDay={null}
+        viewMode="month"
+        onMonthChange={vi.fn()}
+        onViewModeChange={vi.fn()}
+        onSelectedDayChange={vi.fn()}
+        onPlannerMutation={vi.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(postJsonMock).toHaveBeenCalledWith(
+        "/api/planner/prepare",
+        expect.any(Object)
+      );
+    });
+
+    expect(
+      document.querySelector('[data-day-cell="true"][data-day="2026-07-01"]')
+    ).toBeInstanceOf(HTMLButtonElement);
+    expect(
+      document.querySelector('[data-day-cell="true"][data-day="2026-09-30"]')
+    ).toBeInstanceOf(HTMLButtonElement);
   });
 
   it.each(["month", "week", "three_day"] as const)(

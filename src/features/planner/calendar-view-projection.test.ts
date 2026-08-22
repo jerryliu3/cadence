@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { selectCalendarViewWindowProjection } from "./calendar-view-projection";
 
 describe("selectCalendarViewWindowProjection", () => {
-  it("returns month cells and visible days for month mode", () => {
+  it("returns a scrollable month window while keeping current-month highlighting", () => {
     const projection = selectCalendarViewWindowProjection({
       month: "2026-08",
       selectedDay: null,
@@ -12,10 +12,13 @@ describe("selectCalendarViewWindowProjection", () => {
     });
 
     expect(projection.focusedDay).toBe("2026-08-11");
-    expect(projection.cells).toHaveLength(42);
-    expect(projection.visibleDays).toHaveLength(42);
-    expect(projection.visibleDays[0]).toBe(projection.cells[0]?.date);
-    expect(projection.visibleDays.at(-1)).toBe(projection.cells.at(-1)?.date);
+    expect(projection.cells).toHaveLength(105);
+    expect(projection.visibleDays).toHaveLength(105);
+    expect(projection.cells[0]?.date).toBe("2026-06-29");
+    expect(projection.cells.at(-1)?.date).toBe("2026-10-11");
+    expect(projection.cellByDate.get("2026-07-01")?.inMonth).toBe(false);
+    expect(projection.cellByDate.get("2026-08-15")?.inMonth).toBe(true);
+    expect(projection.cellByDate.get("2026-09-30")?.inMonth).toBe(false);
   });
 
   it("returns focused week days and cells for week mode", () => {

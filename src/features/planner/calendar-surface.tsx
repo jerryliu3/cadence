@@ -199,6 +199,8 @@ export function CalendarSurface({
   const calendarPreparedRef = useRef(false);
   const dayPreviewRef = useRef<HTMLDivElement | null>(null);
   const rollingWeekStripRef = useRef<HTMLDivElement | null>(null);
+  const monthGridScrollRef = useRef<HTMLDivElement | null>(null);
+  const monthGridScrollKeyRef = useRef<string | null>(null);
   const isDayPreviewSurfaceTarget = (target: Element) =>
     Boolean(target.closest('[data-day-cell="true"]')) ||
     Boolean(dayPreviewRef.current?.contains(target));
@@ -210,7 +212,10 @@ export function CalendarSurface({
   const loadContext = usePlannerContextLoader({
     activeTab,
     month,
+    selectedDay,
+    viewMode,
     setupTimezone,
+    setupWeekStartsOn,
     onMonthChange,
     setContext,
     setLoading,
@@ -289,6 +294,7 @@ export function CalendarSurface({
   });
   const {
     cells,
+    cellByDate,
     focusedDay,
     focusedWeekDays,
     focusedWeekCells,
@@ -800,6 +806,17 @@ export function CalendarSurface({
     },
     [onMonthChange, onSelectedDayChange, viewMode]
   );
+  const monthScrollAnchorDay = useMemo(() => {
+    if (!month) {
+      return null;
+    }
+    for (const day of focusedWeekDays) {
+      if (cellByDate.has(day)) {
+        return day;
+      }
+    }
+    return cells.find((cell) => cell.date.startsWith(`${month}-`))?.date ?? null;
+  }, [cellByDate, cells, focusedWeekDays, month]);
   const moveViewWindow = (direction: -1 | 1) => {
     if (viewMode === "month") {
       if (!month) {
@@ -879,6 +896,41 @@ export function CalendarSurface({
       window.removeEventListener("resize", alignRollingWeekStripToFocusedDay);
     };
   }, [alignRollingWeekStripToFocusedDay, viewMode]);
+  useEffect(() => {
+    if (viewMode !== "month") {
+      monthGridScrollKeyRef.current = null;
+      return;
+    }
+    const container = monthGridScrollRef.current;
+    if (!container || !monthScrollAnchorDay || !month) {
+      return;
+    }
+    const scrollKey = `${month}:${monthScrollAnchorDay}`;
+    if (monthGridScrollKeyRef.current === scrollKey) {
+      return;
+    }
+    const frame = window.requestAnimationFrame(() => {
+      const anchorCell = container.querySelector<HTMLElement>(
+        `[data-day-cell="true"][data-day="${monthScrollAnchorDay}"]`
+      );
+      if (!anchorCell) {
+        return;
+      }
+      monthGridScrollKeyRef.current = scrollKey;
+      const nextTop = Math.max(0, anchorCell.offsetTop);
+      if (typeof container.scrollTo === "function") {
+        container.scrollTo({
+          top: nextTop,
+          behavior: "auto",
+        });
+        return;
+      }
+      container.scrollTop = nextTop;
+    });
+    return () => {
+      window.cancelAnimationFrame(frame);
+    };
+  }, [month, monthScrollAnchorDay, viewMode]);
   const saveButtonLabel = saveLoading ? "Saving..." : "Save plan";
   const renderCalendarDayCell = usePlannerCalendarDayCellRenderer({
     viewMode,
@@ -1097,11 +1149,22 @@ export function CalendarSurface({
                           <span key={weekday}>{weekday}</span>
                         ))}
                       </div>
-                      <div className="mt-2 grid min-w-[calc(7*((100%-1rem)/3))] grid-cols-[repeat(7,minmax(0,calc((100%-1rem)/3)))] gap-2 md:min-w-0 md:grid-cols-7">
-                        {(viewMode === "week" ? focusedWeekCells : cells).map(
-                          renderCalendarDayCell
-                        )}
-                      </div>
+                      {viewMode === "month" ? (
+                        <div
+                          ref={monthGridScrollRef}
+                          className="mt-2 max-h-[34rem] overflow-y-auto overscroll-contain pr-1"
+                        >
+                          <div className="grid min-w-[calc(7*((100%-1rem)/3))] grid-cols-[repeat(7,minmax(0,calc((100%-1rem)/3)))] gap-2 md:min-w-0 md:grid-cols-7">
+                            {cells.map(renderCalendarDayCell)}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="mt-2 grid min-w-[calc(7*((100%-1rem)/3))] grid-cols-[repeat(7,minmax(0,calc((100%-1rem)/3)))] gap-2 md:min-w-0 md:grid-cols-7">
+                          {(viewMode === "week" ? focusedWeekCells : cells).map(
+                            renderCalendarDayCell
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
