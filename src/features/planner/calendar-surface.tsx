@@ -23,6 +23,10 @@ import {
 import {
   PlannerDndProvider,
 } from "@/features/planner/calendar-dnd";
+import {
+  getCalendarTargetScrollTop,
+  getTopVisibleCalendarDay,
+} from "@/features/planner/calendar-scroll-position";
 import { MoveSessionDialog } from "@/features/planner/move-session-dialog";
 import { PlannerCoachPanel } from "@/features/planner/coach/planner-coach-panel";
 import { usePlannerCoach } from "@/features/planner/coach/use-planner-coach";
@@ -40,8 +44,6 @@ import { resolveUserTimezone } from "@/lib/dates/timezone";
 import {
   invalidatePlannerRelatedTabCaches,
 } from "@/lib/cache/planner-tab-cache";
-import { MAX_GOAL_TARGET_COUNT } from "@/lib/planner/contracts/bounds";
-import type { EligibilityReason } from "@/lib/planner/eligibility";
 import {
   type PlannerPolicy,
 } from "@/lib/planner/policy";
@@ -79,61 +81,14 @@ import { usePlannerContextLoader } from "@/features/planner/use-planner-context-
 import { usePlannerSetup } from "@/features/planner/use-planner-setup";
 import { usePlannerPreviewSession } from "@/features/planner/use-planner-preview-session";
 import { usePlannerDayPreviewInteractions } from "@/features/planner/use-planner-day-preview-interactions";
-import { ROLLING_WEEK_GRID_WIDTH_BY_VIEW } from "@/features/planner/calendar-rolling-week-width";
-const DAY_PREVIEW_HOVER_DELAY_MS = 1000;
-const DAY_PREVIEW_CLOSE_DELAY_MS = 250;
-const DAY_PREVIEW_LONG_PRESS_DELAY_MS = 500;
-const MAX_MONTH_HEADING_SAMPLE = "September 2026";
-const MAX_WEEK_HEADING_SAMPLE = "Sep 30 - Sep 30, 2026";
-const MAX_THREE_DAY_HEADING_SAMPLE = "Sep 30 - Oct 2, 2026";
-const MAX_DAY_HEADING_SAMPLE = "Wed Aug 30";
-const ROLLING_WEEK_GRID_LABELS_BASE_CLASS =
-  "grid min-w-[calc(7*var(--rolling-week-cell-width))] grid-cols-[repeat(7,minmax(0,var(--rolling-week-cell-width)))] gap-2 text-center text-xs text-muted-foreground";
-const ROLLING_WEEK_GRID_CELLS_BASE_CLASS =
-  "mt-2 grid min-w-[calc(7*var(--rolling-week-cell-width))] grid-cols-[repeat(7,minmax(0,var(--rolling-week-cell-width)))] gap-2";
 interface OpenGoalInstance {
   entryKey: string;
   day: string;
 }
-const SCOPE_ONLY_ELIGIBILITY_REASONS = new Set([
-  "end_outside_scope",
-  "starts_after_scope",
-]);
-const NON_ACTIONABLE_ELIGIBILITY_REASONS = new Set([
-  "not_owner",
-  "deleted",
-  "archived",
-]);
-const ELIGIBILITY_REASON_GROUP_LABELS: Partial<Record<EligibilityReason, string>> = {
-  invalid_date_range: "Goals with invalid date ranges",
-  horizon_too_long: "Goals beyond the planning horizon",
-  target_exceeds_limit: "Goals exceeding planner size limits",
-};
-const ELIGIBILITY_REASON_LABELS: Record<EligibilityReason, string> = {
-  eligible: "This goal can be planned.",
-  not_owner: "Only goals you own can be planned here.",
-  deleted: "Deleted goals are excluded from planning.",
-  archived: "Archived goals are excluded from planning.",
-  linked_target:
-    "Linked target goals can be hidden in months where linked source coverage is still active.",
-  invalid_date_range: "The goal dates are invalid (start is after end).",
-  end_outside_scope: "This goal ends before the selected planning month.",
-  starts_after_scope: "This goal starts after the selected planning month.",
-  horizon_too_long:
-    "This goal deadline exceeds the 24-month planning horizon limit.",
-  target_exceeds_limit: `This goal target exceeds the planner's maximum supported limit (${MAX_GOAL_TARGET_COUNT.toLocaleString()}).`,
-};
 
-function getEligibilityReasonLabel(reason: EligibilityReason) {
-  return ELIGIBILITY_REASON_LABELS[reason];
+function isMonthScopedCalendarViewMode(viewMode: PlannerCalendarViewMode) {
+  return viewMode === "month";
 }
-
-const PLANNER_VIEW_MODES = [
-  { value: "month", label: "Month" },
-  { value: "week", label: "Week" },
-  { value: "three_day", label: "3 Day" },
-  { value: "day", label: "Day" },
-] as const;
 
 export function CalendarSurface({
   activeTab,
@@ -141,7 +96,6 @@ export function CalendarSurface({
   selectedDay,
   viewMode,
   onMonthChange,
-  onViewModeChange,
   onSelectedDayChange,
   onPlannerMutation,
   duoScope = "me",
@@ -179,6 +133,9 @@ export function CalendarSurface({
   const [warningsDismissed, setWarningsDismissed] = useState(false);
   const [localSelectedDay, setLocalSelectedDay] = useState<string | null>(null);
   const [expandedMonthRows, setExpandedMonthRows] = useState(false);
+  const [pendingMonthScrollAnchorDay, setPendingMonthScrollAnchorDay] = useState<
+    string | null
+  >(null);
   const [previewEntryOrderByDay, setPreviewEntryOrderByDay] = useState<
     Record<string, string[]>
   >({});
@@ -199,8 +156,9 @@ export function CalendarSurface({
   const calendarPreparedRef = useRef(false);
   const dayPreviewRef = useRef<HTMLDivElement | null>(null);
   const rollingWeekStripRef = useRef<HTMLDivElement | null>(null);
-  const monthGridScrollRef = useRef<HTMLDivElement | null>(null);
-  const monthGridScrollKeyRef = useRef<string | null>(null);
+  const multiMonthGridScrollRef = useRef<HTMLDivElement | null>(null);
+  const monthScrollAlignmentKeyRef = useRef<string | null>(null);
+  const monthScrollAnchorDayRef = useRef<string | null>(null);
   const isDayPreviewSurfaceTarget = (target: Element) =>
     Boolean(target.closest('[data-day-cell="true"]')) ||
     Boolean(dayPreviewRef.current?.contains(target));
@@ -266,7 +224,6 @@ export function CalendarSurface({
     currentScopeMonth,
     weekStartsOn,
     calendarToday,
-    todayMonth,
     viewProjection,
     warningModel,
     draftSession,
@@ -500,7 +457,6 @@ export function CalendarSurface({
     viewDescription,
     previousWindowAriaLabel,
     nextWindowAriaLabel,
-    canResetViewWindow,
     stepDays,
   } = viewWindow;
   const previousWarningSeverityRef = useRef(plannerWarningSeverity);
@@ -806,19 +762,61 @@ export function CalendarSurface({
     },
     [onMonthChange, onSelectedDayChange, viewMode]
   );
+  const resolveMonthScopedTopRowDay = useCallback(() => {
+    const container = multiMonthGridScrollRef.current;
+    return container ? getTopVisibleCalendarDay(container) : null;
+  }, []);
+  const handleMonthScopedGridScroll = useCallback(() => {
+    if (!isMonthScopedCalendarViewMode(viewMode)) {
+      return;
+    }
+    const topRowDay = resolveMonthScopedTopRowDay();
+    if (topRowDay) {
+      monthScrollAnchorDayRef.current = topRowDay;
+    }
+  }, [resolveMonthScopedTopRowDay, viewMode]);
   const monthScrollAnchorDay = useMemo(() => {
-    if (!month) {
+    if (!month || !isMonthScopedCalendarViewMode(viewMode)) {
       return null;
+    }
+    const preservedTopRowDay = pendingMonthScrollAnchorDay;
+    if (preservedTopRowDay && cellByDate.has(preservedTopRowDay)) {
+      return preservedTopRowDay;
     }
     for (const day of focusedWeekDays) {
       if (cellByDate.has(day)) {
         return day;
       }
     }
-    return cells.find((cell) => cell.date.startsWith(`${month}-`))?.date ?? null;
-  }, [cellByDate, cells, focusedWeekDays, month]);
+    if (cellByDate.has(calendarToday)) {
+      return calendarToday;
+    }
+    return cells[0]?.date ?? null;
+  }, [
+    calendarToday,
+    cellByDate,
+    cells,
+    focusedWeekDays,
+    month,
+    pendingMonthScrollAnchorDay,
+    viewMode,
+  ]);
+  const resolveWeekdayAlignedAnchorDay = useCallback(
+    (rowStartDay: string) => {
+      const rowWeekDays = Array.from({ length: 7 }, (_, index) =>
+        format(addDays(parse(rowStartDay, "yyyy-MM-dd", new Date()), index), "yyyy-MM-dd")
+      );
+      const parsedToday = parse(calendarToday, "yyyy-MM-dd", new Date());
+      if (!isValid(parsedToday)) {
+        return rowWeekDays[0] ?? rowStartDay;
+      }
+      const weekdayOffset = (parsedToday.getDay() - setupWeekStartsOn + 7) % 7;
+      return rowWeekDays[weekdayOffset] ?? rowWeekDays[0] ?? rowStartDay;
+    },
+    [calendarToday, setupWeekStartsOn]
+  );
   const moveViewWindow = (direction: -1 | 1) => {
-    if (viewMode === "month") {
+    if (isMonthScopedCalendarViewMode(viewMode)) {
       if (!month) {
         return;
       }
@@ -832,19 +830,23 @@ export function CalendarSurface({
     const nextDay = format(addDays(baseDay, direction * stepDays), "yyyy-MM-dd");
     onSelectedDayChange(nextDay, "push", viewMode);
   };
-  const resetViewWindow = () => {
-    if (viewMode === "month") {
-      onMonthChange(todayMonth, "replace");
-      return;
-    }
-    onSelectedDayChange(calendarToday, "replace", viewMode);
-  };
   const setCalendarViewMode = (nextViewMode: PlannerCalendarViewMode) => {
     if (nextViewMode === viewMode) {
       return;
     }
     setDayPreview(null);
-    onViewModeChange(nextViewMode, "push");
+    const monthScopedTopRowDay = isMonthScopedCalendarViewMode(viewMode)
+      ? resolveMonthScopedTopRowDay() ?? monthScrollAnchorDayRef.current
+      : null;
+    const rowAnchorDay =
+      monthScopedTopRowDay ??
+      focusedWeekDays[0] ??
+      focusedDay;
+    const anchorDay = resolveWeekdayAlignedAnchorDay(rowAnchorDay);
+    if (isMonthScopedCalendarViewMode(nextViewMode)) {
+      setPendingMonthScrollAnchorDay(rowAnchorDay);
+    }
+    onSelectedDayChange(anchorDay, "push", nextViewMode);
   };
   const alignRollingWeekStripToFocusedDay = useCallback(() => {
     if (viewMode !== "day" && viewMode !== "three_day") {
@@ -897,16 +899,19 @@ export function CalendarSurface({
     };
   }, [alignRollingWeekStripToFocusedDay, viewMode]);
   useEffect(() => {
-    if (viewMode !== "month") {
-      monthGridScrollKeyRef.current = null;
+    if (!isMonthScopedCalendarViewMode(viewMode)) {
+      monthScrollAlignmentKeyRef.current = null;
       return;
     }
-    const container = monthGridScrollRef.current;
+    if (!context) {
+      return;
+    }
+    const container = multiMonthGridScrollRef.current;
     if (!container || !monthScrollAnchorDay || !month) {
       return;
     }
-    const scrollKey = `${month}:${monthScrollAnchorDay}`;
-    if (monthGridScrollKeyRef.current === scrollKey) {
+    const scrollKey = `${viewMode}:${month}:${monthScrollAnchorDay}`;
+    if (monthScrollAlignmentKeyRef.current === scrollKey) {
       return;
     }
     const frame = window.requestAnimationFrame(() => {
@@ -916,21 +921,27 @@ export function CalendarSurface({
       if (!anchorCell) {
         return;
       }
-      monthGridScrollKeyRef.current = scrollKey;
-      const nextTop = Math.max(0, anchorCell.offsetTop);
+      monthScrollAlignmentKeyRef.current = scrollKey;
+      monthScrollAnchorDayRef.current = monthScrollAnchorDay;
+      const nextTop = getCalendarTargetScrollTop(container, anchorCell);
       if (typeof container.scrollTo === "function") {
         container.scrollTo({
           top: nextTop,
           behavior: "auto",
         });
-        return;
+      } else {
+        container.scrollTop = nextTop;
       }
-      container.scrollTop = nextTop;
     });
     return () => {
       window.cancelAnimationFrame(frame);
     };
-  }, [month, monthScrollAnchorDay, viewMode]);
+  }, [
+    context,
+    month,
+    monthScrollAnchorDay,
+    viewMode,
+  ]);
   const saveButtonLabel = saveLoading ? "Saving..." : "Save plan";
   const renderCalendarDayCell = usePlannerCalendarDayCellRenderer({
     viewMode,
@@ -1070,14 +1081,12 @@ export function CalendarSurface({
               nextWindowAriaLabel={nextWindowAriaLabel}
               fixedViewHeadingWidthCh={fixedViewHeadingWidthCh}
               viewHeading={viewHeading}
-              canResetViewWindow={canResetViewWindow}
               viewDescription={viewDescription}
               expandedMonthRows={expandedMonthRows}
               onMoveViewWindow={moveViewWindow}
               onToggleExpandedMonthRows={() =>
                 setExpandedMonthRows((current) => !current)
               }
-              onResetViewWindow={resetViewWindow}
             />
             <PlannerDndProvider
               getEntryLabel={getDragEntryLabel}
@@ -1090,7 +1099,7 @@ export function CalendarSurface({
               <div
                 className={`transition-opacity duration-150 motion-reduce:transition-none ${
                   loading ? "opacity-70" : "opacity-100"
-                } ${viewMode === "month" ? "min-h-[34rem]" : "min-h-[26rem]"}`}
+                } ${isMonthScopedCalendarViewMode(viewMode) ? "min-h-[34rem]" : "min-h-[26rem]"}`}
               >
                 {viewMode === "day" ? (
                   <div className="space-y-2">
@@ -1149,10 +1158,11 @@ export function CalendarSurface({
                           <span key={weekday}>{weekday}</span>
                         ))}
                       </div>
-                      {viewMode === "month" ? (
+                      {isMonthScopedCalendarViewMode(viewMode) ? (
                         <div
-                          ref={monthGridScrollRef}
-                          className="mt-2 max-h-[34rem] overflow-y-auto overscroll-contain pr-1"
+                          ref={multiMonthGridScrollRef}
+                          onScroll={handleMonthScopedGridScroll}
+                          className="mt-2 max-h-[34rem] overflow-y-auto overscroll-contain pr-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
                         >
                           <div className="grid min-w-[calc(7*((100%-1rem)/3))] grid-cols-[repeat(7,minmax(0,calc((100%-1rem)/3)))] gap-2 md:min-w-0 md:grid-cols-7">
                             {cells.map(renderCalendarDayCell)}

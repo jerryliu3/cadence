@@ -42,6 +42,7 @@ interface CalendarMonthDayCellProps<
 > {
   day: string;
   inMonth: boolean;
+  monthContextLabel?: string | null;
   isToday: boolean;
   isPastInMonth: boolean;
   ariaLabel: string;
@@ -80,6 +81,7 @@ export function CalendarMonthDayCell<
 >({
   day,
   inMonth,
+  monthContextLabel = null,
   isToday,
   isPastInMonth,
   ariaLabel,
@@ -240,20 +242,34 @@ export function CalendarMonthDayCell<
                 : isPastInMonth
                   ? "bg-muted/20 hover:border-primary/50"
                   : "bg-background hover:border-primary/60"
-              : "bg-muted/30 text-muted-foreground"
+              : "border-muted-foreground/40 bg-muted/80 text-muted-foreground"
           } ${isAnyEntryDragging && isOver ? "ring-2 ring-primary/70" : ""}`}
           aria-label={ariaLabel}
           data-no-swipe="true"
           data-day-cell="true"
           data-day={day}
         >
-          <p
-            className={`pointer-events-none absolute top-2 left-2 text-xs font-medium leading-none ${
-              isToday ? "text-primary" : ""
-            }`}
-          >
-            {day.slice(8, 10)}
-          </p>
+          <div className="pointer-events-none absolute top-2 left-2 flex items-center gap-1.5">
+            <p
+              className={`text-xs font-semibold leading-none ${
+                isToday
+                  ? "text-primary"
+                  : inMonth
+                    ? "text-foreground"
+                    : "text-foreground"
+              }`}
+            >
+              {day.slice(8, 10)}
+            </p>
+            {monthContextLabel ? (
+              <span
+                className="rounded-sm border border-border/70 bg-background/90 px-1 py-0.5 text-[10px] font-semibold uppercase leading-none tracking-wide text-foreground/80"
+                data-month-context-label={monthContextLabel}
+              >
+                {monthContextLabel}
+              </span>
+            ) : null}
+          </div>
           {hasVisibleContent ? (
             <div className="mt-4 space-y-1">
               {visibleEntries.map(renderEntry)}
