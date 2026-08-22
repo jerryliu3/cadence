@@ -67,22 +67,96 @@ export function PlannerCalendarToolbar({
       className="rounded-xl border bg-card p-4 shadow-sm"
       data-testid="planner-calendar-toolbar"
     >
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <CalendarDays className="size-4 text-primary" />
-            <h2 className="text-lg font-semibold">Calendar</h2>
-            {hasDraftSession ? (
-              <Badge
-                data-testid="planner-preview-mode-badge"
-                className="h-7 border-amber-300 bg-amber-100 px-3 text-sm font-semibold text-amber-950 dark:border-amber-300 dark:bg-amber-100 dark:text-amber-950"
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <CalendarDays className="size-4 text-primary" />
+              <h2 className="text-lg font-semibold">Calendar</h2>
+              {hasDraftSession ? (
+                <Badge
+                  data-testid="planner-preview-mode-badge"
+                  className="h-7 border-amber-300 bg-amber-100 px-3 text-sm font-semibold text-amber-950 dark:border-amber-300 dark:bg-amber-100 dark:text-amber-950"
+                >
+                  Planning Mode
+                </Badge>
+              ) : null}
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {!plannerReadOnly && canShowSaveAction ? (
+              <Button
+                type="button"
+                size="sm"
+                onClick={onSave}
+                title={draftSaveBlockedMessage ?? undefined}
+                disabled={saveDisabled}
               >
-                Planning Mode
-              </Badge>
+                {saveButtonLabel}
+              </Button>
+            ) : null}
+            {plannerReadOnly ? (
+              <span className="text-xs text-muted-foreground">
+                Partner completions (read-only)
+              </span>
+            ) : null}
+            {hasDraftSession ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={onDiscardDraftChanges}
+                disabled={undoDisabled}
+              >
+                Undo changes
+              </Button>
+            ) : null}
+            <Select
+              value={viewMode}
+              onValueChange={(value) => onViewModeChange(value as PlannerCalendarViewMode)}
+            >
+              <SelectTrigger
+                className="h-8 w-[7.5rem] rounded-md bg-background/90 text-xs"
+                disabled={loading}
+                aria-label="Calendar view mode"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PLANNER_VIEW_MODES.map((modeOption) => (
+                  <SelectItem key={modeOption.value} value={modeOption.value}>
+                    {modeOption.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-sm"
+              aria-label="Filters"
+              title="Filters"
+              onClick={onOpenFilters}
+              disabled={loading}
+            >
+              <SlidersHorizontal className="size-4" />
+            </Button>
+            {canOpenSettings ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                aria-label="Settings"
+                title="Settings"
+                onClick={onOpenSettings}
+                disabled={loading}
+              >
+                <Settings className="size-4" />
+              </Button>
             ) : null}
           </div>
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-2">
+        <div className="flex justify-end">
           <Input
             id="planner-calendar-search"
             type="search"
@@ -93,76 +167,6 @@ export function PlannerCalendarToolbar({
             aria-label="Search goals"
             disabled={loading}
           />
-          {!plannerReadOnly && canShowSaveAction ? (
-            <Button
-              type="button"
-              size="sm"
-              onClick={onSave}
-              title={draftSaveBlockedMessage ?? undefined}
-              disabled={saveDisabled}
-            >
-              {saveButtonLabel}
-            </Button>
-          ) : null}
-          {plannerReadOnly ? (
-            <span className="text-xs text-muted-foreground">
-              Partner completions (read-only)
-            </span>
-          ) : null}
-          {hasDraftSession ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={onDiscardDraftChanges}
-              disabled={undoDisabled}
-            >
-              Undo changes
-            </Button>
-          ) : null}
-          <Select
-            value={viewMode}
-            onValueChange={(value) => onViewModeChange(value as PlannerCalendarViewMode)}
-          >
-            <SelectTrigger
-              className="h-8 w-[7.5rem] rounded-md bg-background/90 text-xs"
-              disabled={loading}
-              aria-label="Calendar view mode"
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {PLANNER_VIEW_MODES.map((modeOption) => (
-                <SelectItem key={modeOption.value} value={modeOption.value}>
-                  {modeOption.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon-sm"
-            aria-label="Filters"
-            title="Filters"
-            onClick={onOpenFilters}
-            disabled={loading}
-          >
-            <SlidersHorizontal className="size-4" />
-          </Button>
-          {canOpenSettings ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="icon-sm"
-              aria-label="Settings"
-              title="Settings"
-              onClick={onOpenSettings}
-              disabled={loading}
-            >
-              <Settings className="size-4" />
-            </Button>
-          ) : null}
         </div>
       </div>
     </div>
