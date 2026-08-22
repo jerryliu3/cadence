@@ -50,7 +50,7 @@ export function GoalLinkTargetSelect({
     <div className="space-y-2">
       <Label className="inline-flex items-center gap-2">
         <Link2 className="size-4 text-muted-foreground" />
-        Link this subgoal to a main goal
+        Make this a subgoal linked to...
       </Label>
       <Select
         value={value}
@@ -66,7 +66,7 @@ export function GoalLinkTargetSelect({
             <Input
               value={searchQuery}
               onChange={(event) => onSearchQueryChange(event.target.value)}
-              placeholder="Search main goals to link..."
+              placeholder="Choose a main goal"
               className="h-8"
               onKeyDown={(event) => event.stopPropagation()}
             />

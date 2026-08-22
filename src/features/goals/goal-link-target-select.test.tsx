@@ -155,7 +155,7 @@ describe("GoalLinkTargetSelect", () => {
       />
     );
 
-    await user.type(screen.getByPlaceholderText("Search main goals to link..."), "run");
+    await user.type(screen.getByPlaceholderText("Choose a main goal"), "run");
     expect(onSearchQueryChange).toHaveBeenCalled();
   });
 
