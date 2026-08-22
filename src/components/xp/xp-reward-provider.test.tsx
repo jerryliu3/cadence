@@ -1,42 +1,12 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it } from "vitest";
 import {
   useXpReward,
   XpRewardProvider,
 } from "@/components/xp/xp-reward-provider";
 
-const { motionPreference } = vi.hoisted(() => ({
-  motionPreference: { current: false },
-}));
-
-vi.mock("motion/react", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("motion/react")>();
-  return {
-    ...actual,
-    useReducedMotion: () => motionPreference.current,
-  };
-});
-
-beforeEach(() => {
-  motionPreference.current = false;
-  vi.stubGlobal(
-    "matchMedia",
-    vi.fn().mockImplementation((query: string) => ({
-      matches: motionPreference.current,
-      media: query,
-      onchange: null,
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      addListener: vi.fn(),
-      removeListener: vi.fn(),
-      dispatchEvent: vi.fn(),
-    }))
-  );
-});
-
 afterEach(() => {
   cleanup();
-  vi.unstubAllGlobals();
 });
 
 function RewardHarness() {
@@ -57,25 +27,7 @@ function RewardHarness() {
 }
 
 describe("XpRewardProvider", () => {
-  it("renders a pointer-transparent star flight for a reward", async () => {
-    const { container } = render(
-      <XpRewardProvider>
-        <RewardHarness />
-      </XpRewardProvider>
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "Celebrate" }));
-
-    await waitFor(() => {
-      expect(container.querySelectorAll("[data-reward-burst]")).toHaveLength(5);
-    });
-    expect(
-      container.querySelector("[data-motion='xp-reward-overlay']")
-    ).toHaveClass("pointer-events-none");
-  });
-
-  it("keeps the badge update but omits particles for reduced motion", () => {
-    motionPreference.current = true;
+  it("keeps reward celebrate non-blocking without rendering particles", () => {
     const { container } = render(
       <XpRewardProvider>
         <RewardHarness />
@@ -85,5 +37,8 @@ describe("XpRewardProvider", () => {
     fireEvent.click(screen.getByRole("button", { name: "Celebrate" }));
 
     expect(container.querySelectorAll("[data-reward-burst]")).toHaveLength(0);
+    expect(
+      container.querySelector("[data-motion='xp-reward-overlay']")
+    ).toHaveClass("pointer-events-none");
   });
 });

@@ -36,12 +36,10 @@ export function CompletionToggle({
 }: CompletionToggleProps) {
   const OPTIMISTIC_FALLBACK_MS = 8_000;
   const classes = sizeClasses[size];
-  const [pressActive, setPressActive] = React.useState(false);
   const [optimisticCompleted, setOptimisticCompleted] = React.useState<boolean | null>(
     null
   );
   const optimisticBaseStateRef = React.useRef<boolean | null>(null);
-  const pressTimerRef = React.useRef<number | null>(null);
   const optimisticTimerRef = React.useRef<number | null>(null);
 
   const clearOptimisticState = React.useCallback(() => {
@@ -55,9 +53,6 @@ export function CompletionToggle({
 
   React.useEffect(
     () => () => {
-      if (pressTimerRef.current !== null) {
-        window.clearTimeout(pressTimerRef.current);
-      }
       if (optimisticTimerRef.current !== null) {
         window.clearTimeout(optimisticTimerRef.current);
       }
@@ -78,21 +73,6 @@ export function CompletionToggle({
   const handleClick: React.MouseEventHandler<HTMLButtonElement> = (event) => {
     triggerLightPressFeedback();
     const desiredState = !completed;
-
-    if (desiredState) {
-      setPressActive(true);
-      if (pressTimerRef.current !== null) {
-        window.clearTimeout(pressTimerRef.current);
-      }
-      pressTimerRef.current = window.setTimeout(() => {
-        setPressActive(false);
-        pressTimerRef.current = null;
-      }, 360);
-    } else if (pressTimerRef.current !== null) {
-      window.clearTimeout(pressTimerRef.current);
-      pressTimerRef.current = null;
-      setPressActive(false);
-    }
 
     optimisticBaseStateRef.current = completed;
     setOptimisticCompleted(desiredState);
@@ -116,40 +96,18 @@ export function CompletionToggle({
       data-visual-completed={visualCompleted}
       data-motion="completion-toggle"
       className={cn(
-        "group relative isolate flex shrink-0 touch-manipulation items-center justify-center overflow-visible rounded-full border border-border bg-background shadow-sm transition-[transform,box-shadow,background-color,border-color] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] hover:border-primary hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 active:translate-y-0.5 active:scale-[0.94] active:shadow-none disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transform-none motion-reduce:transition-none",
+        "group relative isolate flex shrink-0 touch-manipulation items-center justify-center rounded-full border border-border bg-background shadow-sm transition-[transform,box-shadow,background-color,border-color] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-standard)] hover:border-primary hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 active:translate-y-0.5 active:scale-[0.94] active:shadow-none disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transform-none motion-reduce:transition-none",
         classes.button,
         className
       )}
       onClick={handleClick}
       {...props}
     >
-      {visualCompleted || pressActive ? (
-        <>
-          {pressActive ? (
-            <span
-              aria-hidden="true"
-              className="motion-completion-ring pointer-events-none absolute inset-0 -z-10 rounded-full border border-primary/50"
-            />
-          ) : null}
-          {visualCompleted ? (
-            <CheckCircle2
-              key="completed"
-              className={cn(
-                pressActive && "motion-completion-icon",
-                "text-primary",
-                classes.icon
-              )}
-            />
-          ) : (
-            <CheckCircle2
-              key="pending"
-              className={cn(
-                "motion-completion-icon text-primary",
-                classes.icon
-              )}
-            />
-          )}
-        </>
+      {visualCompleted ? (
+        <CheckCircle2
+          key="completed"
+          className={cn("text-primary", classes.icon)}
+        />
       ) : (
         <Circle
           key="incomplete"

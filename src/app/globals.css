@@ -128,32 +128,6 @@ a {
   text-decoration: none;
 }
 
-@keyframes motion-completion-icon-pop {
-  0% {
-    opacity: 0.45;
-    transform: scale(0.68) rotate(-10deg);
-  }
-  62% {
-    opacity: 1;
-    transform: scale(1.14) rotate(3deg);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1) rotate(0);
-  }
-}
-
-@keyframes motion-completion-ring {
-  0% {
-    opacity: 0.4;
-    scale: 0.6;
-  }
-  100% {
-    opacity: 0;
-    scale: 1.65;
-  }
-}
-
 @keyframes motion-popup-enter {
   from {
     opacity: 0;
@@ -291,15 +265,6 @@ a {
   animation: 180ms ease-out both app-nav-fade-in;
 }
 
-.motion-completion-icon {
-  animation: motion-completion-icon-pop var(--motion-duration-standard)
-    var(--motion-ease-emphasized) both;
-}
-
-.motion-completion-ring {
-  animation: motion-completion-ring 360ms var(--motion-ease-standard) both;
-}
-
 .motion-popup-enter {
   transform-origin: top center;
   animation: motion-popup-enter var(--motion-duration-standard)
@@ -307,8 +272,6 @@ a {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .motion-completion-icon,
-  .motion-completion-ring,
   .motion-popup-enter,
   .motion-collapsible-content {
     animation: none !important;
