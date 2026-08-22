@@ -33,4 +33,27 @@ describe("TodayHeaderCard", () => {
     expect(screen.queryByText("Today")).not.toBeInTheDocument();
     expect(screen.queryByText("Fri Aug 14, 2026")).not.toBeInTheDocument();
   });
+
+  it("centers the Today button below the date row when viewing another day", () => {
+    render(
+      <TodayHeaderCard
+        viewDate="2026-08-13"
+        todayLocalDate="2026-08-14"
+        viewingToday={false}
+        onViewDateChange={vi.fn()}
+        onGoToPreviousDate={vi.fn()}
+        onGoToNextDate={vi.fn()}
+        onResetToToday={vi.fn()}
+      />
+    );
+
+    const titleRow = screen.getByText("Thursday").closest("[data-title-date-row]");
+    const todayButton = screen.getByRole("button", { name: "Today" });
+    const todayRow = todayButton.parentElement;
+
+    expect(titleRow).not.toBeNull();
+    expect(todayButton.closest("[data-title-date-row]")).toBeNull();
+    expect(todayRow).toHaveClass("justify-center");
+    expect(titleRow?.nextElementSibling).toContainElement(todayButton);
+  });
 });

@@ -762,8 +762,9 @@ export function TodayTab({
         <div className="pt-3">
           <PlannerTasksPanel
             title="Tasks for this day"
-            description="Simple one-time tasks for this day (separate from long-term or recurring goals)."
+            description="Simple one-time tasks for this day (separate from long-term or recurring goals). Add new tasks from the Tasks tab."
             scheduledDate={viewDate}
+            allowCreate={false}
           />
         </div>
       ) : null}

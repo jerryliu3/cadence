@@ -1124,7 +1124,7 @@ export function CalendarSurface({
                     asOfDate={context?.asOfDate ?? null}
                     canMutatePlanItems={canMutatePlanItems}
                     canMutateEntryOnDay={canMutateEntryOnDay}
-                    getEntryDisplayTitle={getEntryFeedTitleWithTime}
+                    getEntryDisplayTitle={getEntryDisplayTitleWithTime}
                     getEntrySubtitle={getEntrySubtitle}
                     isEntryCredited={isEntryCredited}
                     isEntryImmovableForDraft={isEntryImmovableForDraft}
@@ -1192,7 +1192,7 @@ export function CalendarSurface({
             asOfDate={context?.asOfDate ?? null}
             canMutatePlanItems={canMutatePlanItems}
             canMutateEntryOnDay={canMutateEntryOnDay}
-            getEntryDisplayTitle={getEntryFeedTitleWithTime}
+            getEntryDisplayTitle={getEntryDisplayTitleWithTime}
             getEntrySubtitle={getEntrySubtitle}
             isEntryCredited={isEntryCredited}
             isEntryImmovableForDraft={isEntryImmovableForDraft}

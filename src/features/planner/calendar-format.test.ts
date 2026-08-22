@@ -43,6 +43,7 @@ describe("calendar entry subtitles", () => {
       getEntrySubtitle({
         goalTitle: "Run",
         label: "total:2",
+        unitKey: "total:2",
       })
     ).toBeNull();
   });
@@ -52,17 +53,39 @@ describe("calendar entry subtitles", () => {
       getEntrySubtitle({
         goalTitle: "Launch",
         label: "Publish beta",
+        unitKey: "milestone:2",
       })
     ).toBe("Next: Publish beta");
   });
 
-  it("keeps default milestone text when the subtitle shows both names", () => {
+  it("hides canonical default milestone subtitles", () => {
     expect(
       getEntrySubtitle({
         goalTitle: "Launch",
         label: "Milestone 2",
+        unitKey: "milestone:2",
       })
-    ).toBe("Next: Milestone 2");
+    ).toBeNull();
+  });
+
+  it("keeps non-canonical milestone-like labels in subtitles", () => {
+    expect(
+      getEntrySubtitle({
+        goalTitle: "Launch",
+        label: "Milestone 3",
+        unitKey: "milestone:2",
+      })
+    ).toBe("Next: Milestone 3");
+  });
+
+  it("omits subtitles when no goal title is available", () => {
+    expect(
+      getEntrySubtitle({
+        goalTitle: null,
+        label: "Milestone custom",
+        unitKey: "milestone:2",
+      })
+    ).toBeNull();
   });
 });
 
@@ -144,6 +167,16 @@ describe("calendar feed entry titles", () => {
       getEntryFeedTitle({
         goalTitle: "5k training block",
         label: "   ",
+        unitKey: "milestone:2",
+      })
+    ).toBe("5k training block");
+  });
+
+  it("falls back to goal title for canonical default milestone labels", () => {
+    expect(
+      getEntryFeedTitle({
+        goalTitle: "5k training block",
+        label: "Milestone 2",
         unitKey: "milestone:2",
       })
     ).toBe("5k training block");
