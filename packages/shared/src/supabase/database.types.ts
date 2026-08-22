@@ -2130,7 +2130,6 @@ export type Database = {
       }
       synthetic_users: {
         Row: {
-          account_private: boolean
           archetype: string
           completions_today: number
           created_at: string
@@ -2143,7 +2142,6 @@ export type Database = {
           user_id: string
         }
         Insert: {
-          account_private?: boolean
           archetype?: string
           completions_today?: number
           created_at?: string
@@ -2156,7 +2154,6 @@ export type Database = {
           user_id: string
         }
         Update: {
-          account_private?: boolean
           archetype?: string
           completions_today?: number
           created_at?: string

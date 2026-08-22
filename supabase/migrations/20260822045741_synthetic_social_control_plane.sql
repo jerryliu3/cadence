@@ -1,7 +1,6 @@
 create table if not exists public.synthetic_users (
   user_id uuid primary key references public.profiles(id) on delete cascade,
   persona text not null check (persona in ('low', 'medium', 'high')),
-  account_private boolean not null default true,
   archetype text not null default 'general',
   daily_budget integer not null check (daily_budget between 1 and 12),
   completions_today integer not null default 0 check (completions_today >= 0),
@@ -332,7 +331,6 @@ begin
       jsonb_build_object(
         'username', v_username,
         'display_name', v_display_name,
-        'private_account', true,
         'archetype', v_archetype,
         'region', 'north_america',
         'age_band', '20_30'
@@ -393,7 +391,6 @@ begin
     insert into public.synthetic_users (
       user_id,
       persona,
-      account_private,
       archetype,
       daily_budget,
       completions_today,
@@ -403,7 +400,6 @@ begin
     values (
       v_user_id,
       v_persona,
-      true,
       v_archetype,
       v_daily_budget,
       0,
@@ -412,7 +408,6 @@ begin
     )
     on conflict (user_id) do update
       set persona = excluded.persona,
-          account_private = true,
           archetype = excluded.archetype,
           daily_budget = excluded.daily_budget,
           enabled = true;
