@@ -30,9 +30,12 @@ export interface CalendarDayAccessorsArgs {
   context: PlannerContextPayload | null;
   effectivePreview: PlannerContextPayload["preview"] | null;
   draftCommandState: DraftCommandState;
-  month: string | null;
   currentScopeMonth: string | null;
   calendarToday: string;
+  editableDateWindow: {
+    start: string;
+    end: string;
+  } | null;
   categoryFilter: string;
   endMonthFilter: string | null;
   searchQuery?: string;
@@ -74,9 +77,9 @@ export function selectCalendarDayAccessorsModel({
   context,
   effectivePreview,
   draftCommandState,
-  month,
   currentScopeMonth,
   calendarToday,
+  editableDateWindow,
   categoryFilter,
   endMonthFilter,
   searchQuery = "",
@@ -166,18 +169,18 @@ export function selectCalendarDayAccessorsModel({
   const getCalendarDayProjection = (day: string | null): PlannerCalendarDayProjection =>
     readPlannerCalendarDayProjection(dayProjectionByDay, day);
 
-  const isDayInCurrentScopeMonth = (day: string | null) => {
-    if (!day || !month) {
+  const isDayInEditableScope = (day: string | null) => {
+    if (!day || !editableDateWindow) {
       return false;
     }
-    return day.slice(0, 7) === month;
+    return day >= editableDateWindow.start && day <= editableDateWindow.end;
   };
 
   const canMutateEntryOnDay = (entry: PlannerDayDetailEntry, day: string | null) => {
     if (!day) {
       return false;
     }
-    if (isDayInCurrentScopeMonth(day)) {
+    if (isDayInEditableScope(day)) {
       return true;
     }
     return entryDayByKey.get(entry.key) === day;
