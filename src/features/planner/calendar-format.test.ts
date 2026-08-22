@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildWeekdayLabels,
   getEntryCompactTitle,
-  getEntryFeedTitle,
+  getEntryMilestoneFirstTitle,
   getEntrySubtitle,
   normalizeWeekStartsOn,
 } from "@/features/planner/calendar-format";
@@ -154,7 +154,7 @@ describe("calendar compact entry titles", () => {
 describe("calendar feed entry titles", () => {
   it("uses a milestone label in feed items when available", () => {
     expect(
-      getEntryFeedTitle({
+      getEntryMilestoneFirstTitle({
         goalTitle: "5k training block",
         label: "Tempo run 4x800",
         unitKey: "milestone:2",
@@ -164,7 +164,7 @@ describe("calendar feed entry titles", () => {
 
   it("falls back to goal title for milestone entries with blank labels", () => {
     expect(
-      getEntryFeedTitle({
+      getEntryMilestoneFirstTitle({
         goalTitle: "5k training block",
         label: "   ",
         unitKey: "milestone:2",
@@ -174,7 +174,7 @@ describe("calendar feed entry titles", () => {
 
   it("falls back to goal title for canonical default milestone labels", () => {
     expect(
-      getEntryFeedTitle({
+      getEntryMilestoneFirstTitle({
         goalTitle: "5k training block",
         label: "Milestone 2",
         unitKey: "milestone:2",
@@ -184,7 +184,7 @@ describe("calendar feed entry titles", () => {
 
   it("keeps non-milestone feed titles on goal title", () => {
     expect(
-      getEntryFeedTitle({
+      getEntryMilestoneFirstTitle({
         goalTitle: "Hydration",
         label: "Drink two liters",
         unitKey: "total:1",

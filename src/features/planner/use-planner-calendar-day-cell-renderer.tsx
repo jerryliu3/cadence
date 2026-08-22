@@ -10,7 +10,7 @@ import { CalendarMonthDayCell } from "@/features/planner/calendar-month-day-cell
 import {
   getDayStatus,
   getEntryCompactTitleWithTime,
-  getEntryDisplayTitleWithTime,
+  getEntryGoalFirstTitleWithTime,
   isEntryCredited,
   isEntryImmovableForDraft,
 } from "@/features/planner/calendar-format";
@@ -137,7 +137,7 @@ export function usePlannerCalendarDayCellRenderer({
           getEntryDisplayTitle={
             viewMode === "month" || viewMode === "week" || viewMode === "three_day"
               ? getEntryCompactTitleWithTime
-              : getEntryDisplayTitleWithTime
+              : getEntryGoalFirstTitleWithTime
           }
           isEntryCredited={isEntryCredited}
           isEntryImmovableForDraft={(entry) =>

@@ -75,7 +75,7 @@ function getMeaningfulEntryLabel(
   return label;
 }
 
-export function getEntryDisplayTitle(
+export function getEntryGoalFirstTitle(
   entry: Pick<PlannerDayDetailEntry, "goalTitle" | "label" | "unitKey">
 ) {
   if (entry.goalTitle) {
@@ -94,38 +94,38 @@ export function getEntryCompactTitle(
   if (meaningfulLabel && (!entry.goalTitle || meaningfulLabel !== entry.goalTitle)) {
     return meaningfulLabel;
   }
-  return getEntryDisplayTitle(entry);
+  return getEntryGoalFirstTitle(entry);
 }
 
-export function getEntryFeedTitle(
+export function getEntryMilestoneFirstTitle(
   entry: Pick<PlannerDayDetailEntry, "goalTitle" | "label" | "unitKey">
 ) {
   const meaningfulLabel = getMeaningfulEntryLabel(entry);
   if (isMilestoneUnitKey(entry.unitKey) && meaningfulLabel) {
     return meaningfulLabel;
   }
-  return getEntryDisplayTitle(entry);
+  return getEntryGoalFirstTitle(entry);
 }
 
-export function getEntryDisplayTitleWithTime(
+export function getEntryGoalFirstTitleWithTime(
   entry: Pick<
     PlannerDayDetailEntry,
     "goalTitle" | "label" | "unitKey" | "effectiveScheduledLocalTime"
   >
 ) {
-  const baseTitle = getEntryDisplayTitle(entry);
+  const baseTitle = getEntryGoalFirstTitle(entry);
   return entry.effectiveScheduledLocalTime
     ? `${entry.effectiveScheduledLocalTime} ${baseTitle}`
     : baseTitle;
 }
 
-export function getEntryFeedTitleWithTime(
+export function getEntryMilestoneFirstTitleWithTime(
   entry: Pick<
     PlannerDayDetailEntry,
     "goalTitle" | "label" | "unitKey" | "effectiveScheduledLocalTime"
   >
 ) {
-  const baseTitle = getEntryFeedTitle(entry);
+  const baseTitle = getEntryMilestoneFirstTitle(entry);
   return entry.effectiveScheduledLocalTime
     ? `${entry.effectiveScheduledLocalTime} ${baseTitle}`
     : baseTitle;

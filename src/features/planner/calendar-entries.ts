@@ -1,6 +1,6 @@
 import {
   entryDisplayRank,
-  getEntryDisplayTitle,
+  getEntryGoalFirstTitle,
 } from "@/features/planner/calendar-format";
 import type {
   DraftItemEdit,
@@ -516,7 +516,7 @@ export function orderEntriesForDay({
     if (rightOrder !== undefined) {
       return 1;
     }
-    return getEntryDisplayTitle(left).localeCompare(getEntryDisplayTitle(right));
+    return getEntryGoalFirstTitle(left).localeCompare(getEntryGoalFirstTitle(right));
   };
   return [...entries].sort(compareWithinGroup);
 }

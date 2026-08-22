@@ -17,7 +17,7 @@ interface BuildMoveSourceOptionsArgs {
     NonNullable<PlannerContextPayload["preview"]>["workUnits"][number]
   >;
   canMutateEntryOnDay: (entry: PlannerDayDetailEntry, day: string | null) => boolean;
-  getEntryDisplayTitleWithTime: (entry: PlannerDayDetailEntry) => string;
+  getEntryGoalFirstTitleWithTime: (entry: PlannerDayDetailEntry) => string;
 }
 
 export function buildMoveSourceOptions({
@@ -27,7 +27,7 @@ export function buildMoveSourceOptions({
   entriesByDate,
   draftWindowUnitByEntryKey,
   canMutateEntryOnDay,
-  getEntryDisplayTitleWithTime,
+  getEntryGoalFirstTitleWithTime,
 }: BuildMoveSourceOptionsArgs): MoveSourceCandidate[] {
   if (!targetDay || !scopeMonth) {
     return [];
@@ -69,7 +69,7 @@ export function buildMoveSourceOptions({
       options.push({
         entryKey: entry.key,
         sourceDay: day,
-        sourceLabel: getEntryDisplayTitleWithTime(entry),
+        sourceLabel: getEntryGoalFirstTitleWithTime(entry),
         entry,
       });
     }
