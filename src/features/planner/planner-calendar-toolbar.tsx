@@ -73,6 +73,18 @@ export function PlannerCalendarToolbar({
             <div className="flex items-center gap-2">
               <CalendarDays className="size-4 text-primary" />
               <h2 className="text-lg font-semibold">Calendar</h2>
+              {viewMode !== "month" ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  disabled={loading}
+                  onClick={() => onViewModeChange("month")}
+                >
+                  Month View
+                </Button>
+              ) : null}
               {hasDraftSession ? (
                 <Badge
                   data-testid="planner-preview-mode-badge"
