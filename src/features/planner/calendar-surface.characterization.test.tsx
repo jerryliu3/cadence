@@ -219,6 +219,46 @@ describe("CalendarSurface characterization", () => {
     );
   });
 
+  it("renders a month-scoped vertical window with previous and next month rows", async () => {
+    postJsonMock.mockResolvedValue(
+      buildContext([
+        unit({
+          originalGoalId: "goal-a",
+          unitKey: "total:1",
+          scheduledDate: "2026-08-20",
+        }),
+      ])
+    );
+
+    render(
+      <CalendarSurface
+        activeTab="calendar"
+        month="2026-08"
+        selectedDay={null}
+        viewMode="month"
+        onMonthChange={vi.fn()}
+        onViewModeChange={vi.fn()}
+        onSelectedDayChange={vi.fn()}
+        onPlannerMutation={vi.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(postJsonMock).toHaveBeenCalledWith(
+        "/api/planner/prepare",
+        expect.any(Object)
+      );
+    });
+
+    expect(
+      document.querySelector('[data-day-cell="true"][data-day="2026-07-01"]')
+    ).toBeInstanceOf(HTMLButtonElement);
+    expect(
+      document.querySelector('[data-day-cell="true"][data-day="2026-09-30"]')
+    ).toBeInstanceOf(HTMLButtonElement);
+  });
+
+  it.each(["month", "three_month", "week", "three_day"] as const)(
   it.each(["month", "week", "three_day"] as const)(
     "keeps time prefix while using compact milestone labels in %s cells",
     async (viewMode) => {
