@@ -334,7 +334,7 @@ export function TodayTab({
 
   const refreshChecklistInBackground = useCallback(
     (scrollY: number) => {
-      void loadData({ showLoading: false, forceRefresh: true })
+      void loadData({ showLoading: false, forceRefresh: true, completionOnly: true })
         .then(() => {
           requestAnimationFrame(() => {
             window.scrollTo({ top: scrollY, behavior: "auto" });

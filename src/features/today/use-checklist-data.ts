@@ -62,6 +62,7 @@ export function useChecklistData({
   const partnerId = duoState.activePartner?.partnerId ?? null;
   const router = useRouter();
   const [data, setData] = useState<TodayData>(emptyTodayData);
+  const dataRef = useRef<TodayData>(emptyTodayData);
   const [loading, setLoading] = useState(true);
   const loadRequestIdRef = useRef(0);
   const viewDateProgressRequestIdRef = useRef(0);
@@ -76,6 +77,10 @@ export function useChecklistData({
   useEffect(() => {
     currentViewDateRef.current = viewDate;
   }, [viewDate]);
+
+  useEffect(() => {
+    dataRef.current = data;
+  }, [data]);
 
   const redirectToLogin = useCallback(() => {
     if (authRedirectStartedRef.current) {
@@ -103,7 +108,12 @@ export function useChecklistData({
       {
         showLoading = true,
         forceRefresh = false,
-      }: { showLoading?: boolean; forceRefresh?: boolean } = {}
+        completionOnly = false,
+      }: {
+        showLoading?: boolean;
+        forceRefresh?: boolean;
+        completionOnly?: boolean;
+      } = {}
     ) => {
       const requestId = loadRequestIdRef.current + 1;
       loadRequestIdRef.current = requestId;
@@ -153,7 +163,38 @@ export function useChecklistData({
             return;
           }
         }
-        const [goalsResponse, teamMembersResponse, linksResponse, progress] =
+        const progress = await withAbortSignal(
+          fetchProgressContext({
+            asOfDate: todayLocalDate,
+            viewDate: currentViewDateRef.current,
+            subjectUserId: targetIsViewer ? undefined : targetSubjectUserId,
+            forceRefresh,
+          }),
+          controller.signal
+        );
+
+        const previousData = dataRef.current;
+        if (
+          completionOnly &&
+          previousData.userId === targetSubjectUserId &&
+          previousData.goals.length > 0
+        ) {
+          if (requestId !== loadRequestIdRef.current) {
+            return;
+          }
+          const nextData: TodayData = {
+            ...previousData,
+            completions: progress.facts,
+            progress,
+          };
+          dataRef.current = nextData;
+          setData(nextData);
+          writeTabDataCache(todayDataCacheKey, nextData);
+          clearLaneError();
+          return;
+        }
+
+        const [goalsResponse, teamMembersResponse, linksResponse] =
           await withAbortSignal(
             Promise.all([
               targetIsViewer
@@ -167,12 +208,6 @@ export function useChecklistData({
               targetIsViewer
                 ? supabase.from("goal_links").select("*").eq("owner_id", userId)
                 : Promise.resolve({ data: [], error: null }),
-              fetchProgressContext({
-                asOfDate: todayLocalDate,
-                viewDate: currentViewDateRef.current,
-                subjectUserId: targetIsViewer ? undefined : targetSubjectUserId,
-                forceRefresh,
-              }),
             ]),
             controller.signal
           );
@@ -228,6 +263,7 @@ export function useChecklistData({
           progress,
         };
         setData(nextData);
+        dataRef.current = nextData;
         writeTabDataCache(todayDataCacheKey, nextData);
         clearLaneError();
       } finally {
