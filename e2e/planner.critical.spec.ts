@@ -77,7 +77,7 @@ async function openCalendar(page: Page, scopeMonth?: string) {
     ? `/app/calendar?surface=calendar&view=month&month=${scopeMonth}`
     : "/app/calendar?surface=calendar&view=month";
   await page.goto(query);
-  await expect(page).toHaveURL(/\/calendar/);
+  await expect(page).toHaveURL(/\/app\/calendar/);
   await waitForCalendarReady(page);
   await ensureMonthCalendarDensity(page);
 
@@ -107,7 +107,7 @@ async function openCalendar(page: Page, scopeMonth?: string) {
       );
     }
     await page.goto(query);
-    await expect(page).toHaveURL(/\/calendar/);
+    await expect(page).toHaveURL(/\/app\/calendar/);
     await waitForCalendarReady(page);
     await ensureMonthCalendarDensity(page);
   }

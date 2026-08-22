@@ -54,9 +54,23 @@ test("legacy day links redirect into calendar route", async ({
   await expect(page).toHaveURL(/month=2026-08/);
 });
 
-test("login surface has no detectable WCAG A/AA violations", async ({
+test("public root route renders landing page", async ({
   page,
 }) => {
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: /plan your goals/i })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Create account" }).first()).toBeVisible();
+  await expect(page.getByRole("link", { name: "Go to app" })).toBeVisible();
+});
+
+test("goal creation entry stays under the /app shell", async ({ page }) => {
+  await page.goto("/app");
+  await page.getByRole("link", { name: /new goal \+/i }).first().click();
+  await expect(page).toHaveURL(/\/app\/goals\/new/);
+  await expect(page.getByRole("heading", { name: "Create goal" }).first()).toBeVisible();
+});
+
+test("login surface has no detectable WCAG A/AA violations", async ({ page }) => {
   await page.goto("/app");
   await page.context().clearCookies();
   await page.evaluate(() => window.localStorage.clear());
@@ -64,7 +78,7 @@ test("login surface has no detectable WCAG A/AA violations", async ({
   await expect(page.getByText("Welcome back")).toBeVisible();
 
   const results = await new AxeBuilder({ page })
-    .withTags(["wcag2a", "wcag2aa"])
+        .withTags(["wcag2a", "wcag2aa"])
     .analyze();
 
   const violationsExcludingKnownViewportTradeoff = results.violations.filter(
