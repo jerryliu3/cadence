@@ -61,6 +61,148 @@ export function usePlannerEntryMutations({
   loadContext,
   refreshDraftPreview,
 }: UsePlannerEntryMutationsArgs) {
+  const addPlannedInstance = useCallback(
+    async ({ goalId, day }: { goalId: string; day: string }) => {
+      if (!context) {
+        return false;
+      }
+      if (hasDraftSession) {
+        toast.error("Save or discard Planning Mode changes before adding activities.");
+        return false;
+      }
+      const expectedDigest = context.revisions.scheduleDigest;
+      if (!expectedDigest) {
+        toast.error("Planner state is stale. Refresh and try again.");
+        return false;
+      }
+
+      const mutationKey = `add:${goalId}:${day}`;
+      setMutationLoadingKey(mutationKey);
+      let added = false;
+      try {
+        try {
+          await postJson("/api/planner/items/instance-adjust", {
+            goalId,
+            action: "add",
+            date: day,
+            expectedDigest,
+          });
+          added = true;
+        } catch (error) {
+          toast.error(getApiErrorMessage(error, "Planner add activity failed."));
+          return false;
+        }
+
+        try {
+          handlePlannerMutation();
+          const refreshed = await withPlannerRefreshTimeout({
+            operation: loadContext({
+              showLoading: false,
+              toastOnError: false,
+              forcePrepare: true,
+            }),
+            timeoutMessage:
+              "Activity added, but calendar refresh timed out. Please refresh the page.",
+          });
+          if (!refreshed) {
+            toast.error(
+              "Activity added, but calendar refresh failed. Please refresh the page."
+            );
+            return false;
+          }
+        } catch (error) {
+          if (added) {
+            toast.error(
+              error instanceof Error
+                ? error.message
+                : "Activity added, but calendar refresh failed. Please refresh the page."
+            );
+            return false;
+          }
+          toast.error(getApiErrorMessage(error, "Planner add activity failed."));
+          return false;
+        }
+
+        toast.success("Planned activity added.");
+        return true;
+      } finally {
+        setMutationLoadingKey(null);
+      }
+    },
+    [context, handlePlannerMutation, hasDraftSession, loadContext, setMutationLoadingKey]
+  );
+
+  const deletePlannedInstance = useCallback(
+    async (entry: PlannerDayDetailEntry) => {
+      if (!context || !entry.activeItem) {
+        return false;
+      }
+      if (hasDraftSession) {
+        toast.error("Save or discard Planning Mode changes before deleting activities.");
+        return false;
+      }
+      const expectedDigest = context.revisions.scheduleDigest;
+      if (!expectedDigest) {
+        toast.error("Planner state is stale. Refresh and try again.");
+        return false;
+      }
+
+      const mutationKey = `delete:${entry.originalGoalId}:${entry.unitKey}`;
+      setMutationLoadingKey(mutationKey);
+      let deleted = false;
+      try {
+        try {
+          await postJson("/api/planner/items/instance-adjust", {
+            goalId: entry.originalGoalId,
+            action: "delete",
+            unitKey: entry.unitKey,
+            expectedDigest,
+          });
+          deleted = true;
+        } catch (error) {
+          toast.error(getApiErrorMessage(error, "Planner delete activity failed."));
+          return false;
+        }
+
+        try {
+          handlePlannerMutation();
+          const refreshed = await withPlannerRefreshTimeout({
+            operation: loadContext({
+              showLoading: false,
+              toastOnError: false,
+              forcePrepare: true,
+            }),
+            timeoutMessage:
+              "Activity deleted, but calendar refresh timed out. Please refresh the page.",
+          });
+          if (!refreshed) {
+            toast.error(
+              "Activity deleted, but calendar refresh failed. Please refresh the page."
+            );
+            return false;
+          }
+        } catch (error) {
+          if (deleted) {
+            toast.error(
+              error instanceof Error
+                ? error.message
+                : "Activity deleted, but calendar refresh failed. Please refresh the page."
+            );
+            return false;
+          }
+          toast.error(getApiErrorMessage(error, "Planner delete activity failed."));
+          return false;
+        }
+
+        toast.success("Planned activity deleted.");
+        return true;
+      } finally {
+        setMutationLoadingKey(null);
+      }
+    },
+    [context, handlePlannerMutation, hasDraftSession, loadContext, setMutationLoadingKey]
+  );
+
   const toggleItemLock = useCallback(
     async (entry: PlannerDayDetailEntry) => {
       if (!context || !entry.activeItem) {
@@ -282,6 +424,8 @@ export function usePlannerEntryMutations({
   );
 
   return {
+    addPlannedInstance,
+    deletePlannedInstance,
     toggleItemLock,
     toggleDateFact,
   };

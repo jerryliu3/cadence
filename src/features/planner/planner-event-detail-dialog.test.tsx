@@ -29,6 +29,7 @@ describe("PlannerEventDetailDialog", () => {
       onUpdateDraftScheduledDate: vi.fn(),
       onUpdateDraftScheduledTimeOverride: vi.fn(),
       onToggleItemLock: vi.fn(),
+      onRequestDeleteInstance: vi.fn(),
       onNavigateToFirstOpenInstance: vi.fn(),
       onNavigateToPreviousOpenInstance: vi.fn(),
       onNavigateToNextOpenInstance: vi.fn(),
@@ -47,6 +48,8 @@ describe("PlannerEventDetailDialog", () => {
         selectedEventDraftTimeInputValue=""
         mutationLoadingKey={null}
         canMutatePlanItems
+        canDeleteSelectedInstance={false}
+        deleteBlockedReason="blocked"
         canNavigateToFirstOpenInstance={false}
         canNavigateToPreviousOpenInstance={false}
         canNavigateToNextOpenInstance={false}
@@ -67,6 +70,7 @@ describe("PlannerEventDetailDialog", () => {
       onUpdateDraftScheduledDate: vi.fn(),
       onUpdateDraftScheduledTimeOverride: vi.fn(),
       onToggleItemLock: vi.fn(),
+      onRequestDeleteInstance: vi.fn(),
       onNavigateToFirstOpenInstance: vi.fn(),
       onNavigateToPreviousOpenInstance: vi.fn(),
       onNavigateToNextOpenInstance: vi.fn(),
@@ -85,6 +89,8 @@ describe("PlannerEventDetailDialog", () => {
         selectedEventDraftTimeInputValue=""
         mutationLoadingKey={null}
         canMutatePlanItems
+        canDeleteSelectedInstance={false}
+        deleteBlockedReason="blocked"
         canNavigateToFirstOpenInstance
         canNavigateToPreviousOpenInstance={false}
         canNavigateToNextOpenInstance
@@ -117,5 +123,65 @@ describe("PlannerEventDetailDialog", () => {
     expect(callbacks.onNavigateToFirstOpenInstance).toHaveBeenCalledTimes(1)
     expect(callbacks.onNavigateToNextOpenInstance).toHaveBeenCalledTimes(1)
     expect(callbacks.onNavigateToLastOpenInstance).toHaveBeenCalledTimes(1)
+  })
+
+  it("invokes delete callback when delete is enabled", async () => {
+    const entry = buildEntry()
+    entry.activeItem = {
+      id: "item-1",
+      plan_goal_id: "goal-a",
+      unit_key: "total:1",
+      requirement_kind: "deadline_total",
+      scheduled_date: "2026-08-31",
+      original_scheduled_date: "2026-08-31",
+      classification: "open",
+      credit_state: "uncredited",
+      locked: false,
+      revision: 0,
+      credited_completion_id: null,
+      credited_completion_date: null,
+      scheduled_time_override: null,
+      effective_scheduled_local_time: null,
+    }
+    const callbacks = {
+      onOpenChange: vi.fn(),
+      onUpdateDraftLabel: vi.fn(),
+      onUpdateDraftScheduledDate: vi.fn(),
+      onUpdateDraftScheduledTimeOverride: vi.fn(),
+      onToggleItemLock: vi.fn(),
+      onRequestDeleteInstance: vi.fn(),
+      onNavigateToFirstOpenInstance: vi.fn(),
+      onNavigateToPreviousOpenInstance: vi.fn(),
+      onNavigateToNextOpenInstance: vi.fn(),
+      onNavigateToLastOpenInstance: vi.fn(),
+    }
+
+    render(
+      <PlannerEventDetailDialog
+        selectedEventEntry={entry}
+        selectedEventLinkedTargets={[]}
+        goalTitles={{}}
+        scopeMonth="2026-08"
+        selectedEventDraftEdit={undefined}
+        selectedEventBaselineUnit={null}
+        selectedEventDraftScheduledDate="2026-08-31"
+        selectedEventDraftTimeInputValue=""
+        mutationLoadingKey={null}
+        canMutatePlanItems
+        canDeleteSelectedInstance
+        deleteBlockedReason={null}
+        canNavigateToFirstOpenInstance={false}
+        canNavigateToPreviousOpenInstance={false}
+        canNavigateToNextOpenInstance={false}
+        canNavigateToLastOpenInstance={false}
+        getEntryGoalFirstTitleWithTime={() => "Goal A"}
+        callbacks={callbacks}
+      />
+    )
+
+    const activeDialog = (await screen.findAllByRole("dialog")).at(-1)
+    expect(activeDialog).toBeDefined()
+    fireEvent.click(within(activeDialog!).getByRole("button", { name: "Delete" }))
+    expect(callbacks.onRequestDeleteInstance).toHaveBeenCalledWith(entry)
   })
 })

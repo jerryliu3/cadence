@@ -1,7 +1,7 @@
 "use client";
 
 import { format, parse } from "date-fns";
-import { ArrowRightLeft, Minimize2 } from "lucide-react";
+import { ArrowRightLeft, Minimize2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -29,6 +29,8 @@ interface PlannerExpandedPreviewDialogProps {
   isEntryCredited: (entry: PlannerDayDetailEntry) => boolean;
   isEntryImmovableForDraft: (entry: PlannerDayDetailEntry) => boolean;
   onOpenChange: (open: boolean) => void;
+  addDisabled: boolean;
+  onAddDay: (day: string) => void;
   onMoveDay: (day: string) => void;
   onContract: () => void;
   onEntryOpen: (entryKey: string, day: string) => void;
@@ -54,6 +56,8 @@ export function PlannerExpandedPreviewDialog({
   isEntryCredited,
   isEntryImmovableForDraft,
   onOpenChange,
+  addDisabled,
+  onAddDay,
   onMoveDay,
   onContract,
   onEntryOpen,
@@ -66,6 +70,18 @@ export function PlannerExpandedPreviewDialog({
       <DialogContent className="sm:max-w-2xl">
         {expandedPreviewDay ? (
           <div className="absolute top-2 right-10 z-10 flex items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                onAddDay(expandedPreviewDay);
+              }}
+              disabled={addDisabled}
+            >
+              <Plus className="size-4" />
+              Add
+            </Button>
             <Button
               type="button"
               size="sm"
