@@ -117,6 +117,24 @@ export async function fetchSocialFeedPage({
   });
 }
 
+export async function fetchSocialFeedHead({
+  scope = "global",
+}: {
+  scope?: "global" | "team" | "actor";
+}) {
+  const params = new URLSearchParams();
+  params.set("scope", scope);
+  params.set("limit", "1");
+  const response = await fetch(`/api/social/feed?${params.toString()}`, {
+    cache: "no-store",
+    credentials: "include",
+  });
+  if (!response.ok) {
+    await parseApiError(response, "Failed to refresh feed.");
+  }
+  return (await response.json()) as SocialFeedResponse;
+}
+
 export async function fetchSocialChallenges() {
   return fetchSocialCachedJson<SocialChallengesResponse>({
     cacheKey: `${SOCIAL_TAB_CACHE_PREFIX}challenges`,

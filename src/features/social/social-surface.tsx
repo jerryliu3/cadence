@@ -31,6 +31,7 @@ const socialSurfaceTriggerToneClass =
 const selectedChipShadow =
   "inset 0 4px 7px rgba(15, 23, 42, 0.3), inset 2px 0 4px rgba(15, 23, 42, 0.16), inset -1px 0 0 rgba(255, 255, 255, 0.42), inset 0 -2px 1px rgba(255, 255, 255, 0.72)";
 const SOCIAL_SURFACE_FOCUS_REFRESH_COOLDOWN_MS = 15 * 1000;
+const SOCIAL_SURFACE_POLL_INTERVAL_MS = 60 * 1000;
 
 export function SocialSurface({
   initialTab,
@@ -72,6 +73,27 @@ export function SocialSurface({
       refreshActiveTab();
     });
   }, [activeTab, refreshActiveTab]);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      triggerGlobalRefresh();
+    }, 0);
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [triggerGlobalRefresh]);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState !== "visible") {
+        return;
+      }
+      triggerGlobalRefresh();
+    }, SOCIAL_SURFACE_POLL_INTERVAL_MS);
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [triggerGlobalRefresh]);
 
   useEffect(() => {
     window.addEventListener("focus", handleVisibilityOrFocus);

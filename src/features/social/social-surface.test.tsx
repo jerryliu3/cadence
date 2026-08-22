@@ -47,6 +47,7 @@ vi.mock("@/features/social/group-join-card", () => ({
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   vi.clearAllMocks();
 });
 
@@ -54,7 +55,11 @@ describe("SocialSurface refresh behavior", () => {
   it("refreshes feed tab when an XP refresh event is requested", async () => {
     render(<SocialSurface initialTab="feed" />);
 
-    expect(screen.getByTestId("feed-list")).toHaveAttribute("data-refresh-token", "0");
+    await waitFor(() => {
+      expect(screen.getByTestId("feed-list")).toHaveAttribute("data-refresh-token", "1");
+    });
+    expect(invalidateSocialTabCache).toHaveBeenCalledTimes(1);
+    const globalRefreshCount = vi.mocked(invalidateSocialTabCache).mock.calls.length;
 
     act(() => {
       requestXpRefresh({
@@ -64,15 +69,20 @@ describe("SocialSurface refresh behavior", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByTestId("feed-list")).toHaveAttribute("data-refresh-token", "1");
+      expect(screen.getByTestId("feed-list")).toHaveAttribute("data-refresh-token", "2");
     });
     expect(invalidateSocialFeedCache).toHaveBeenCalledTimes(1);
-    expect(invalidateSocialTabCache).not.toHaveBeenCalled();
+    expect(invalidateSocialTabCache).toHaveBeenCalledTimes(globalRefreshCount);
   });
 
   it("does not refresh non-feed tabs on XP refresh events", async () => {
     const user = userEvent.setup();
     render(<SocialSurface initialTab="challenges" />);
+
+    await waitFor(() => {
+      expect(invalidateSocialTabCache).toHaveBeenCalledTimes(1);
+    });
+    const globalRefreshCount = vi.mocked(invalidateSocialTabCache).mock.calls.length;
 
     await user.click(screen.getByRole("tab", { name: "Leaderboards" }));
 
@@ -84,7 +94,7 @@ describe("SocialSurface refresh behavior", () => {
     });
 
     expect(invalidateSocialFeedCache).not.toHaveBeenCalled();
-    expect(invalidateSocialTabCache).not.toHaveBeenCalled();
+    expect(invalidateSocialTabCache).toHaveBeenCalledTimes(globalRefreshCount);
   });
 
   it("refreshes once when window focus returns within cooldown window", async () => {
@@ -93,10 +103,6 @@ describe("SocialSurface refresh behavior", () => {
       value: "visible",
     });
     render(<SocialSurface initialTab="feed" />);
-
-    act(() => {
-      window.dispatchEvent(new Event("focus"));
-    });
 
     await waitFor(() => {
       expect(screen.getByTestId("feed-list")).toHaveAttribute("data-refresh-token", "1");
@@ -108,7 +114,49 @@ describe("SocialSurface refresh behavior", () => {
     });
 
     await waitFor(() => {
-      expect(invalidateSocialTabCache).toHaveBeenCalledTimes(1);
+      expect(screen.getByTestId("feed-list")).toHaveAttribute("data-refresh-token", "2");
     });
+    expect(invalidateSocialTabCache).toHaveBeenCalledTimes(2);
+
+    act(() => {
+      window.dispatchEvent(new Event("focus"));
+    });
+
+    await waitFor(() => {
+      expect(invalidateSocialTabCache).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it("polls once per minute while the document is visible", async () => {
+    vi.useFakeTimers();
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      value: "visible",
+    });
+
+    render(<SocialSurface initialTab="feed" />);
+
+    act(() => {
+      vi.runOnlyPendingTimers();
+    });
+    const initialRefreshCount = vi.mocked(invalidateSocialTabCache).mock.calls.length;
+    expect(initialRefreshCount).toBeGreaterThan(0);
+
+    act(() => {
+      vi.advanceTimersByTime(60 * 1000);
+    });
+
+    expect(invalidateSocialTabCache).toHaveBeenCalledTimes(initialRefreshCount + 1);
+
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      value: "hidden",
+    });
+
+    act(() => {
+      vi.advanceTimersByTime(60 * 1000);
+    });
+
+    expect(invalidateSocialTabCache).toHaveBeenCalledTimes(initialRefreshCount + 1);
   });
 });
