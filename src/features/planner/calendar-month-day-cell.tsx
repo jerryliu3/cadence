@@ -242,39 +242,36 @@ export function CalendarMonthDayCell<
                 : isPastInMonth
                   ? "bg-muted/20 hover:border-primary/50"
                   : "bg-background hover:border-primary/60"
-              : "border-muted-foreground/30 bg-muted/70 text-muted-foreground"
+              : "border-muted-foreground/40 bg-muted/80 text-muted-foreground"
           } ${isAnyEntryDragging && isOver ? "ring-2 ring-primary/70" : ""}`}
           aria-label={ariaLabel}
           data-no-swipe="true"
           data-day-cell="true"
           data-day={day}
         >
-          {monthContextLabel ? (
-            <div className="pointer-events-none absolute inset-x-2 top-1 flex items-center gap-2">
-              <span className="h-px flex-1 bg-border/80" />
+          <div className="pointer-events-none absolute top-2 left-2 flex items-center gap-1.5">
+            <p
+              className={`text-xs font-semibold leading-none ${
+                isToday
+                  ? "text-primary"
+                  : inMonth
+                    ? "text-foreground"
+                    : "text-foreground/75"
+              }`}
+            >
+              {day.slice(8, 10)}
+            </p>
+            {monthContextLabel ? (
               <span
                 className="rounded-sm border border-border/70 bg-background/90 px-1 py-0.5 text-[10px] font-semibold uppercase leading-none tracking-wide text-foreground/80"
                 data-month-context-label={monthContextLabel}
               >
                 {monthContextLabel}
               </span>
-              <span className="h-px flex-1 bg-border/80" />
-            </div>
-          ) : null}
-          <div
-            className={`pointer-events-none absolute left-2 flex flex-col gap-1 ${
-              monthContextLabel ? "top-6" : "top-2"
-            }`}
-          >
-            {monthContextLabel ? (
-              <span className="sr-only">{monthContextLabel}</span>
             ) : null}
-            <p className={`text-xs font-medium leading-none ${isToday ? "text-primary" : ""}`}>
-              {day.slice(8, 10)}
-            </p>
           </div>
           {hasVisibleContent ? (
-            <div className={`space-y-1 ${monthContextLabel ? "mt-8" : "mt-4"}`}>
+            <div className="mt-4 space-y-1">
               {visibleEntries.map(renderEntry)}
               {visibleCompletionFactMarkers.map((marker) => {
                 const partnerOwned = marker.owner === "partner";
