@@ -1,13 +1,44 @@
 "use client";
 
 import { CalendarDays, ListChecks, NotebookPen } from "lucide-react";
+import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
-import { CalendarPageShell } from "@/features/planner/calendar-page-shell";
-import { ChecklistShell } from "@/features/today/checklist-shell";
-import { TasksTab } from "@/features/tasks/tasks-tab";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useClientSearchParamsUpdater } from "@/lib/navigation/use-client-search-params-updater";
 import { cn } from "@/lib/utils";
+
+const PlannerSurfaceFallback = () => (
+  <div className="rounded-2xl border border-border/70 bg-card/60 p-4 text-sm text-muted-foreground">
+    Loading planner surface...
+  </div>
+);
+
+const CalendarPageShell = dynamic(
+  () =>
+    import("@/features/planner/calendar-page-shell").then(
+      (module) => module.CalendarPageShell
+    ),
+  {
+    loading: PlannerSurfaceFallback,
+  }
+);
+
+const ChecklistShell = dynamic(
+  () =>
+    import("@/features/today/checklist-shell").then(
+      (module) => module.ChecklistShell
+    ),
+  {
+    loading: PlannerSurfaceFallback,
+  }
+);
+
+const TasksTab = dynamic(
+  () => import("@/features/tasks/tasks-tab").then((module) => module.TasksTab),
+  {
+    loading: PlannerSurfaceFallback,
+  }
+);
 
 type PlannerSurface = "calendar" | "checklist" | "tasks";
 

@@ -29,7 +29,7 @@ describe("PlannerPageShell", () => {
     const user = userEvent.setup();
     render(<PlannerPageShell />);
 
-    expect(screen.getByText("Checklist surface")).toBeInTheDocument();
+    expect(await screen.findByText("Checklist surface")).toBeInTheDocument();
     expect(screen.queryByText("Calendar surface")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("tab", { name: "Calendar" }));
@@ -39,11 +39,11 @@ describe("PlannerPageShell", () => {
     );
   });
 
-  it("opens Calendar from the planner surface query", () => {
+  it("opens Calendar from the planner surface query", async () => {
     mockSearch = "?surface=calendar";
 
     render(<PlannerPageShell />);
 
-    expect(screen.getByText("Calendar surface")).toBeInTheDocument();
+    expect(await screen.findByText("Calendar surface")).toBeInTheDocument();
   });
 });

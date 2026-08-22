@@ -1,8 +1,18 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { type ReactNode, useEffect, useState } from "react";
-import { PublicProfileSheet } from "@/features/social/public-profile/public-profile-sheet";
 import { subscribeOpenPublicProfile } from "@/lib/social/public-profile-events";
+
+const PublicProfileSheet = dynamic(
+  () =>
+    import("@/features/social/public-profile/public-profile-sheet").then(
+      (module) => module.PublicProfileSheet
+    ),
+  {
+    loading: () => null,
+  }
+);
 
 export function PublicProfileSheetProvider({
   children,
