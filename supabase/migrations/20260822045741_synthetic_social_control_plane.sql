@@ -1,6 +1,8 @@
 create table if not exists public.synthetic_users (
   user_id uuid primary key references public.profiles(id) on delete cascade,
   persona text not null check (persona in ('low', 'medium', 'high')),
+  account_private boolean not null default true,
+  archetype text not null default 'general',
   daily_budget integer not null check (daily_budget between 1 and 12),
   completions_today integer not null default 0 check (completions_today >= 0),
   last_active_date date,
@@ -127,7 +129,7 @@ grant execute on function public.synthetic_apply_completion_service(uuid, uuid, 
   to service_role;
 
 create or replace function public.provision_synthetic_users_service(
-  p_target_count integer default 100,
+  p_target_count integer default 10,
   p_goals_per_user integer default 6
 )
 returns integer
@@ -138,44 +140,121 @@ as $$
 declare
   v_idx integer;
   v_goal_slot integer;
-  v_template_idx integer;
+  v_goal_seed integer;
+  v_action_idx integer;
+  v_focus_idx integer;
+  v_context_idx integer;
+  v_first_idx integer;
+  v_last_idx integer;
+  v_interval_idx integer;
+  v_low_cutoff integer;
+  v_medium_cutoff integer;
+  v_combined_name_count integer;
   v_user_id uuid;
   v_goal_id uuid;
   v_identity_id uuid;
   v_email text;
   v_username text;
   v_display_name text;
+  v_first_name text;
+  v_last_name text;
+  v_archetype text;
   v_persona text;
   v_daily_budget integer;
   v_goal_title text;
+  v_goal_focus text;
+  v_goal_context text;
+  v_goal_action text;
   v_goal_category_key text;
-  v_goal_titles text[] := array[
-    'Morning walk',
-    'Focused work block',
-    'Read 20 pages',
-    'Call a friend',
-    'Strength workout',
-    'Journal for 10 minutes',
-    'Plan tomorrow',
-    'Hydration target',
-    'Review finances',
-    'Practice a skill',
-    'Stretch routine',
-    'Declutter one area'
+  v_goal_color text;
+  v_goal_interval public.recurrence_interval;
+  v_goal_target_count integer;
+  v_first_names text[] := array[
+    'Noah','Liam','Mason','Ethan','Lucas','Aiden','Caleb','Owen','Jayden','Amir','Arjun','Mateo','Diego',
+    'Jordan','Evan','Logan','Avery','Maya','Sofia','Chloe','Naomi','Aaliyah','Jasmine','Leah','Isabella','Priya'
   ];
-  v_goal_categories text[] := array[
-    'health',
-    'career',
-    'personal',
-    'relationships',
-    'health',
-    'personal',
-    'career',
-    'health',
-    'personal',
-    'career',
-    'health',
-    'personal'
+  v_last_names text[] := array[
+    'Nguyen','Rodriguez','Patel','Johnson','Chen','Garcia','Martinez','Singh','Brown','Kim','Campbell','Anderson',
+    'Taylor','Hernandez','Lopez','Gonzalez','Wilson','Tremblay','Carter','Scott','Walker','Young','Hall','Wright',
+    'Allen','Rivera'
+  ];
+  v_archetypes text[] := array[
+    'student',
+    'office_worker',
+    'finance_analyst',
+    'software_engineer',
+    'teacher',
+    'phd_student',
+    'nurse',
+    'sales_rep',
+    'designer',
+    'fitness_coach'
+  ];
+  v_goal_actions text[] := array[
+    'Complete',
+    'Prepare',
+    'Draft',
+    'Review',
+    'Practice',
+    'Ship',
+    'Publish',
+    'Refine',
+    'Analyze',
+    'Present',
+    'Document',
+    'Build',
+    'Coach',
+    'Study',
+    'Plan',
+    'Automate',
+    'Audit',
+    'Improve',
+    'Prototype',
+    'Teach'
+  ];
+  v_goal_focuses text[] := array[
+    'lecture notes',
+    'client updates',
+    'sprint tasks',
+    'portfolio pieces',
+    'lesson plans',
+    'research summary',
+    'budget model',
+    'system design',
+    'training session',
+    'sales pipeline',
+    'lab experiment',
+    'code review checklist',
+    'team onboarding guide',
+    'proposal deck',
+    'networking outreach',
+    'writing session',
+    'career prep tasks',
+    'habit tracker',
+    'study roadmap',
+    'project milestone'
+  ];
+  v_goal_contexts text[] := array[
+    'before lunch',
+    'for this week',
+    'for the next sprint',
+    'for month-end',
+    'with a 30-minute timer',
+    'before 9am',
+    'after work',
+    'for Friday delivery',
+    'for peer feedback',
+    'for class prep',
+    'for manager review',
+    'for team handoff',
+    'for client follow-up',
+    'for publication',
+    'for interview prep',
+    'for quarterly targets',
+    'for presentation day',
+    'for weekend planning',
+    'for personal growth',
+    'for next check-in'
   ];
 begin
   if p_target_count is null or p_target_count < 1 or p_target_count > 500 then
@@ -184,27 +263,47 @@ begin
             message = 'synthetic_target_count_out_of_range';
   end if;
 
-  if p_goals_per_user is null or p_goals_per_user < 1 or p_goals_per_user > 12 then
+  if p_goals_per_user is null or p_goals_per_user < 1 or p_goals_per_user > 24 then
     raise exception
       using errcode = '22023',
             message = 'synthetic_goals_per_user_out_of_range';
   end if;
+
+  v_low_cutoff := pg_catalog.floor(p_target_count::numeric * 0.4)::integer;
+  v_medium_cutoff := v_low_cutoff + pg_catalog.floor(p_target_count::numeric * 0.4)::integer;
+  v_combined_name_count := pg_catalog.array_length(v_first_names, 1) * pg_catalog.array_length(v_last_names, 1);
 
   insert into public.synthetic_config (id)
   values (1)
   on conflict (id) do nothing;
 
   for v_idx in 1..p_target_count loop
+    v_first_idx := ((v_idx - 1) % pg_catalog.array_length(v_first_names, 1)) + 1;
+    v_last_idx := (((v_idx - 1) / pg_catalog.array_length(v_first_names, 1)) % pg_catalog.array_length(v_last_names, 1)) + 1;
+    v_first_name := v_first_names[v_first_idx];
+    v_last_name := v_last_names[v_last_idx];
+    v_display_name := v_first_name || ' ' || v_last_name;
+    v_username := pg_catalog.lower(
+      regexp_replace(
+        v_first_name || '_' || v_last_name || case
+          when v_idx > v_combined_name_count then '_' || v_idx::text
+          else ''
+        end,
+        '[^a-z0-9_]+',
+        '',
+        'g'
+      )
+    );
+    v_archetype := v_archetypes[((v_idx - 1) % pg_catalog.array_length(v_archetypes, 1)) + 1];
+
     v_user_id := private.synthetic_uuid_from_text('synthetic-user-' || v_idx::text);
     v_identity_id := private.synthetic_uuid_from_text('synthetic-identity-' || v_idx::text);
     v_email := 'synthetic+' || lpad(v_idx::text, 3, '0') || '@cadence.local';
-    v_username := 'sim_user_' || lpad(v_idx::text, 3, '0');
-    v_display_name := 'User ' || lpad(v_idx::text, 3, '0');
 
-    if v_idx <= 40 then
+    if v_idx <= v_low_cutoff then
       v_persona := 'low';
       v_daily_budget := 1;
-    elsif v_idx <= 80 then
+    elsif v_idx <= v_medium_cutoff then
       v_persona := 'medium';
       v_daily_budget := 3;
     else
@@ -232,7 +331,11 @@ begin
       '{"provider":"email","providers":["email"]}'::jsonb,
       jsonb_build_object(
         'username', v_username,
-        'display_name', v_display_name
+        'display_name', v_display_name,
+        'private_account', true,
+        'archetype', v_archetype,
+        'region', 'north_america',
+        'age_band', '20_30'
       ),
       pg_catalog.now(),
       pg_catalog.now()
@@ -290,6 +393,8 @@ begin
     insert into public.synthetic_users (
       user_id,
       persona,
+      account_private,
+      archetype,
       daily_budget,
       completions_today,
       last_active_date,
@@ -298,6 +403,8 @@ begin
     values (
       v_user_id,
       v_persona,
+      true,
+      v_archetype,
       v_daily_budget,
       0,
       null,
@@ -305,13 +412,51 @@ begin
     )
     on conflict (user_id) do update
       set persona = excluded.persona,
+          account_private = true,
+          archetype = excluded.archetype,
           daily_budget = excluded.daily_budget,
           enabled = true;
 
     for v_goal_slot in 1..p_goals_per_user loop
-      v_template_idx := ((v_idx + v_goal_slot - 2) % array_length(v_goal_titles, 1)) + 1;
-      v_goal_title := v_goal_titles[v_template_idx];
-      v_goal_category_key := v_goal_categories[v_template_idx];
+      v_goal_seed := ((v_idx - 1) * p_goals_per_user) + v_goal_slot;
+      v_action_idx := ((v_goal_seed - 1) % pg_catalog.array_length(v_goal_actions, 1)) + 1;
+      v_focus_idx := (((v_goal_seed - 1) / pg_catalog.array_length(v_goal_actions, 1)) % pg_catalog.array_length(v_goal_focuses, 1)) + 1;
+      v_context_idx := (((v_goal_seed - 1) / (pg_catalog.array_length(v_goal_actions, 1) * pg_catalog.array_length(v_goal_focuses, 1))) % pg_catalog.array_length(v_goal_contexts, 1)) + 1;
+      v_goal_action := v_goal_actions[v_action_idx];
+      v_goal_focus := v_goal_focuses[v_focus_idx];
+      v_goal_context := v_goal_contexts[v_context_idx];
+      v_goal_title := initcap(replace(v_archetype, '_', ' ')) || ': ' || v_goal_action || ' ' || v_goal_focus || ' ' || v_goal_context;
+
+      if v_archetype in ('fitness_coach', 'nurse') then
+        v_goal_category_key := 'health';
+      elsif v_archetype in ('office_worker', 'finance_analyst', 'software_engineer', 'teacher', 'phd_student', 'sales_rep') then
+        v_goal_category_key := 'career';
+      elsif v_archetype in ('student', 'designer') then
+        v_goal_category_key := 'personal';
+      else
+        v_goal_category_key := 'other';
+      end if;
+
+      v_goal_color := case v_goal_category_key
+        when 'health' then '#10b981'
+        when 'career' then '#8b5cf6'
+        when 'personal' then '#6366f1'
+        when 'relationships' then '#f43f5e'
+        else '#64748b'
+      end;
+
+      v_interval_idx := ((v_goal_seed - 1) % 3) + 1;
+      v_goal_interval := case v_interval_idx
+        when 1 then 'daily'::public.recurrence_interval
+        when 2 then 'weekly'::public.recurrence_interval
+        else 'monthly'::public.recurrence_interval
+      end;
+      v_goal_target_count := case v_goal_interval
+        when 'daily'::public.recurrence_interval then 5
+        when 'weekly'::public.recurrence_interval then 3
+        else 1
+      end;
+
       v_goal_id := private.synthetic_uuid_from_text(
         v_user_id::text || ':synthetic-goal:' || v_goal_slot::text
       );
@@ -340,13 +485,13 @@ begin
         null,
         initcap(v_goal_category_key),
         v_goal_category_key,
-        '#64748b',
+        v_goal_color,
         'recurring'::public.goal_frequency_type,
-        'weekly'::public.recurrence_interval,
-        3,
+        v_goal_interval,
+        v_goal_target_count,
         current_date - 30,
         null,
-        false,
+        true,
         false,
         null
       )
@@ -359,7 +504,7 @@ begin
             target_count = excluded.target_count,
             start_date = excluded.start_date,
             end_date = excluded.end_date,
-            is_private = false,
+            is_private = true,
             is_deleted = false,
             archived_at = null;
     end loop;
