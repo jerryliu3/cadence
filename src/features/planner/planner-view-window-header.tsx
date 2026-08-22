@@ -75,28 +75,26 @@ export function PlannerViewWindowHeader({
             ) : null}
           </div>
         </div>
-        {canResetViewWindow ? (
-          <div className="flex justify-center">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-7 px-2 text-xs"
-              disabled={loading}
-              onClick={onResetViewWindow}
-            >
-              Today
-            </Button>
-          </div>
-        ) : null}
       </div>
       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-        <p>{viewDescription}</p>
+        <p className="min-w-0 flex-1">{viewDescription}</p>
         {loading ? (
           <span className="inline-flex items-center gap-1">
             <Loader2 className="size-3 animate-spin" />
             Updating...
           </span>
+        ) : null}
+        {canResetViewWindow ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2 text-[11px]"
+            disabled={loading}
+            onClick={onResetViewWindow}
+          >
+            Today
+          </Button>
         ) : null}
       </div>
     </div>
