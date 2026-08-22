@@ -345,6 +345,68 @@ describe("CalendarSurface characterization", () => {
     expect(within(dayPanel).queryByText("07:30 Goal B")).not.toBeInTheDocument();
   });
 
+  it("suppresses default milestone label duplication in month preview and event dialog", async () => {
+    postJsonMock.mockResolvedValue(
+      buildContext([
+        unit({
+          originalGoalId: "goal-b",
+          unitKey: "milestone:2",
+          label: "Milestone 2",
+          goalDefaultLocalTime: "07:30",
+          scheduledDate: "2026-08-31",
+        }),
+      ])
+    );
+
+    render(
+      <CalendarSurface
+        activeTab="calendar"
+        month="2026-08"
+        selectedDay={null}
+        viewMode="month"
+        onMonthChange={vi.fn()}
+        onViewModeChange={vi.fn()}
+        onSelectedDayChange={vi.fn()}
+        onPlannerMutation={vi.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(postJsonMock).toHaveBeenCalledWith(
+        "/api/planner/prepare",
+        expect.any(Object)
+      );
+    });
+
+    const dayCell = await waitFor(() => {
+      const match = document.querySelector('[data-day-cell="true"][data-day="2026-08-31"]');
+      if (!(match instanceof HTMLButtonElement)) {
+        throw new Error("Expected calendar day cell for 2026-08-31.");
+      }
+      return match;
+    });
+
+    fireEvent.click(dayCell);
+    await screen.findByRole("button", { name: "Expand day details" });
+    const previewPopover = document.querySelector('[data-no-swipe="true"].fixed');
+    if (!(previewPopover instanceof HTMLElement)) {
+      throw new Error("Expected preview popover element.");
+    }
+
+    expect(within(previewPopover).getByText("07:30 Goal B")).toBeInTheDocument();
+    expect(
+      within(previewPopover).queryByText("07:30 Milestone 2")
+    ).not.toBeInTheDocument();
+    expect(within(previewPopover).queryByText("Next: Milestone 2")).not.toBeInTheDocument();
+
+    fireEvent.click(within(previewPopover).getByText("07:30 Goal B"));
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      within(dialog).getByRole("heading", { name: "07:30 Goal B" })
+    ).toBeInTheDocument();
+    expect(within(dialog).queryByText("Next: Milestone 2")).not.toBeInTheDocument();
+  });
+
   it("force-prepares planner context after coach goals are created", async () => {
     postJsonMock.mockResolvedValue(
       buildContext([

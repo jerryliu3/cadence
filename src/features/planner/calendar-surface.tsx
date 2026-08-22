@@ -13,8 +13,8 @@ import { LoadingCard } from "@/components/ui/loading-card";
 import { allCategoriesValue } from "@/features/goals/goal-filters";
 import {
   buildWeekdayLabels,
-  getEntryFeedTitleWithTime,
-  getEntryDisplayTitleWithTime,
+  getEntryGoalFirstTitleWithTime,
+  getEntryMilestoneFirstTitleWithTime,
   getEntrySubtitle,
   isEntryCredited,
   isEntryImmovableForDraft,
@@ -441,7 +441,7 @@ export function CalendarSurface({
         entriesByDate,
         draftWindowUnitByEntryKey,
         canMutateEntryOnDay,
-        getEntryDisplayTitleWithTime,
+        getEntryGoalFirstTitleWithTime,
       }),
     [
       canMutateEntryOnDay,
@@ -677,7 +677,7 @@ export function CalendarSurface({
     entryByKey,
     entryDayByKey,
     getEntriesForDay,
-    getEntryDisplayTitleWithTime,
+    getEntryGoalFirstTitleWithTime,
     setPreviewEntryOrderByDay,
     queueDraftMoveCommand,
     clearHoverPreviewTimer,
@@ -1055,7 +1055,7 @@ export function CalendarSurface({
                         asOfDate={context?.asOfDate ?? null}
                         canMutatePlanItems={canMutatePlanItems}
                         canMutateEntryOnDay={canMutateEntryOnDay}
-                        getEntryDisplayTitle={getEntryFeedTitleWithTime}
+                        getEntryDisplayTitle={getEntryMilestoneFirstTitleWithTime}
                         getEntrySubtitle={getEntrySubtitle}
                         isEntryCredited={isEntryCredited}
                         isEntryImmovableForDraft={isEntryImmovableForDraft}
@@ -1124,7 +1124,7 @@ export function CalendarSurface({
                     asOfDate={context?.asOfDate ?? null}
                     canMutatePlanItems={canMutatePlanItems}
                     canMutateEntryOnDay={canMutateEntryOnDay}
-                    getEntryDisplayTitle={getEntryFeedTitleWithTime}
+                    getEntryDisplayTitle={getEntryGoalFirstTitleWithTime}
                     getEntrySubtitle={getEntrySubtitle}
                     isEntryCredited={isEntryCredited}
                     isEntryImmovableForDraft={isEntryImmovableForDraft}
@@ -1192,7 +1192,7 @@ export function CalendarSurface({
             asOfDate={context?.asOfDate ?? null}
             canMutatePlanItems={canMutatePlanItems}
             canMutateEntryOnDay={canMutateEntryOnDay}
-            getEntryDisplayTitle={getEntryFeedTitleWithTime}
+            getEntryDisplayTitle={getEntryGoalFirstTitleWithTime}
             getEntrySubtitle={getEntrySubtitle}
             isEntryCredited={isEntryCredited}
             isEntryImmovableForDraft={isEntryImmovableForDraft}
@@ -1266,7 +1266,7 @@ export function CalendarSurface({
             canNavigateToPreviousOpenInstance={canNavigateToPreviousOpenInstance}
             canNavigateToNextOpenInstance={canNavigateToNextOpenInstance}
             canNavigateToLastOpenInstance={canNavigateToLastOpenInstance}
-            getEntryDisplayTitleWithTime={getEntryDisplayTitleWithTime}
+            getEntryGoalFirstTitleWithTime={getEntryGoalFirstTitleWithTime}
             callbacks={{
               onOpenChange: (open) => {
                 if (!open) {

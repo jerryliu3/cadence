@@ -72,13 +72,15 @@ export function TodayHeaderCard({
               </div>
               <div className="flex shrink-0 items-center justify-end gap-1.5 sm:gap-2">
                 {datePickerControls ? <div className="shrink-0">{datePickerControls}</div> : null}
-                {!viewingToday ? (
-                  <Button type="button" variant="ghost" size="sm" onClick={onResetToToday}>
-                    Today
-                  </Button>
-                ) : null}
               </div>
             </div>
+            {!viewingToday ? (
+              <div className="flex justify-center">
+                <Button type="button" variant="ghost" size="sm" onClick={onResetToToday}>
+                  Today
+                </Button>
+              </div>
+            ) : null}
             {searchControls ? <div className="w-full">{searchControls}</div> : null}
           </div>
           {quickFilterControls ? (

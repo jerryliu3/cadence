@@ -60,7 +60,7 @@ interface PlannerEventDetailDialogProps {
   canNavigateToPreviousOpenInstance: boolean;
   canNavigateToNextOpenInstance: boolean;
   canNavigateToLastOpenInstance: boolean;
-  getEntryDisplayTitleWithTime: (entry: PlannerDayDetailEntry) => string;
+  getEntryGoalFirstTitleWithTime: (entry: PlannerDayDetailEntry) => string;
   callbacks: PlannerEventDetailDialogCallbacks;
 }
 
@@ -79,7 +79,7 @@ export function PlannerEventDetailDialog({
   canNavigateToPreviousOpenInstance,
   canNavigateToNextOpenInstance,
   canNavigateToLastOpenInstance,
-  getEntryDisplayTitleWithTime,
+  getEntryGoalFirstTitleWithTime,
   callbacks,
 }: PlannerEventDetailDialogProps) {
   const handleOpenAutoFocus = (event: Event) => {
@@ -116,7 +116,7 @@ export function PlannerEventDetailDialog({
             </Button>
             <DialogTitle className="mx-1 min-w-0 text-center">
               {selectedEventEntry
-                ? getEntryDisplayTitleWithTime(selectedEventEntry)
+                ? getEntryGoalFirstTitleWithTime(selectedEventEntry)
                 : "Event detail"}
             </DialogTitle>
             <Button

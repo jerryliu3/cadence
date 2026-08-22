@@ -59,7 +59,7 @@ describe("buildMoveSourceOptions", () => {
       entriesByDate: projection.entriesByDate,
       draftWindowUnitByEntryKey,
       canMutateEntryOnDay: () => true,
-      getEntryDisplayTitleWithTime: (entry) => entry.label ?? "",
+      getEntryGoalFirstTitleWithTime: (entry) => entry.label ?? "",
     });
 
     expect(options.some((option) => option.entry.originalGoalId === "goal-a")).toBe(

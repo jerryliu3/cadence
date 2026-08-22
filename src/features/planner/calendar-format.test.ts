@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildWeekdayLabels,
   getEntryCompactTitle,
-  getEntryFeedTitle,
+  getEntryMilestoneFirstTitle,
   getEntrySubtitle,
   normalizeWeekStartsOn,
 } from "@/features/planner/calendar-format";
@@ -43,6 +43,7 @@ describe("calendar entry subtitles", () => {
       getEntrySubtitle({
         goalTitle: "Run",
         label: "total:2",
+        unitKey: "total:2",
       })
     ).toBeNull();
   });
@@ -52,17 +53,39 @@ describe("calendar entry subtitles", () => {
       getEntrySubtitle({
         goalTitle: "Launch",
         label: "Publish beta",
+        unitKey: "milestone:2",
       })
     ).toBe("Next: Publish beta");
   });
 
-  it("keeps default milestone text when the subtitle shows both names", () => {
+  it("hides canonical default milestone subtitles", () => {
     expect(
       getEntrySubtitle({
         goalTitle: "Launch",
         label: "Milestone 2",
+        unitKey: "milestone:2",
       })
-    ).toBe("Next: Milestone 2");
+    ).toBeNull();
+  });
+
+  it("keeps non-canonical milestone-like labels in subtitles", () => {
+    expect(
+      getEntrySubtitle({
+        goalTitle: "Launch",
+        label: "Milestone 3",
+        unitKey: "milestone:2",
+      })
+    ).toBe("Next: Milestone 3");
+  });
+
+  it("omits subtitles when no goal title is available", () => {
+    expect(
+      getEntrySubtitle({
+        goalTitle: null,
+        label: "Milestone custom",
+        unitKey: "milestone:2",
+      })
+    ).toBeNull();
   });
 });
 
@@ -131,7 +154,7 @@ describe("calendar compact entry titles", () => {
 describe("calendar feed entry titles", () => {
   it("uses a milestone label in feed items when available", () => {
     expect(
-      getEntryFeedTitle({
+      getEntryMilestoneFirstTitle({
         goalTitle: "5k training block",
         label: "Tempo run 4x800",
         unitKey: "milestone:2",
@@ -141,7 +164,7 @@ describe("calendar feed entry titles", () => {
 
   it("falls back to goal title for milestone entries with blank labels", () => {
     expect(
-      getEntryFeedTitle({
+      getEntryMilestoneFirstTitle({
         goalTitle: "5k training block",
         label: "   ",
         unitKey: "milestone:2",
@@ -149,9 +172,19 @@ describe("calendar feed entry titles", () => {
     ).toBe("5k training block");
   });
 
+  it("falls back to goal title for canonical default milestone labels", () => {
+    expect(
+      getEntryMilestoneFirstTitle({
+        goalTitle: "5k training block",
+        label: "Milestone 2",
+        unitKey: "milestone:2",
+      })
+    ).toBe("5k training block");
+  });
+
   it("keeps non-milestone feed titles on goal title", () => {
     expect(
-      getEntryFeedTitle({
+      getEntryMilestoneFirstTitle({
         goalTitle: "Hydration",
         label: "Drink two liters",
         unitKey: "total:1",

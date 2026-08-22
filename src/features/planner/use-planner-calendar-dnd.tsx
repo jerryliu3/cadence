@@ -19,7 +19,7 @@ interface UsePlannerCalendarDndArgs {
   entryByKey: Map<string, PlannerDayDetailEntry>;
   entryDayByKey: Map<string, string>;
   getEntriesForDay: (day: string) => PlannerDayDetailEntry[];
-  getEntryDisplayTitleWithTime: (entry: PlannerDayDetailEntry) => string;
+  getEntryGoalFirstTitleWithTime: (entry: PlannerDayDetailEntry) => string;
   setPreviewEntryOrderByDay: Dispatch<SetStateAction<Record<string, string[]>>>;
   queueDraftMoveCommand: (args: {
     entry: PlannerDayDetailEntry;
@@ -34,7 +34,7 @@ export function usePlannerCalendarDnd({
   entryByKey,
   entryDayByKey,
   getEntriesForDay,
-  getEntryDisplayTitleWithTime,
+  getEntryGoalFirstTitleWithTime,
   setPreviewEntryOrderByDay,
   queueDraftMoveCommand,
   clearHoverPreviewTimer,
@@ -50,9 +50,9 @@ export function usePlannerCalendarDnd({
   const getDragEntryLabel = useCallback(
     (entryKey: string) => {
       const entry = entryByKey.get(entryKey);
-      return entry ? getEntryDisplayTitleWithTime(entry) : "planner session";
+      return entry ? getEntryGoalFirstTitleWithTime(entry) : "planner session";
     },
-    [entryByKey, getEntryDisplayTitleWithTime]
+    [entryByKey, getEntryGoalFirstTitleWithTime]
   );
 
   const getDragDayLabel = useCallback((day: string) => {
@@ -75,7 +75,7 @@ export function usePlannerCalendarDnd({
         category: entry.activeGoal?.category ?? null,
       });
       const Icon = visual.Icon;
-      const title = getEntryDisplayTitleWithTime(entry);
+      const title = getEntryGoalFirstTitleWithTime(entry);
       const credited = isEntryCredited(entry);
       return (
         <div
@@ -95,7 +95,7 @@ export function usePlannerCalendarDnd({
         </div>
       );
     },
-    [entryByKey, getEntryDisplayTitleWithTime]
+    [entryByKey, getEntryGoalFirstTitleWithTime]
   );
 
   const handleDndEntryDragStart = useCallback(

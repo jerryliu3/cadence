@@ -51,7 +51,7 @@ describe("PlannerEventDetailDialog", () => {
         canNavigateToPreviousOpenInstance={false}
         canNavigateToNextOpenInstance={false}
         canNavigateToLastOpenInstance={false}
-        getEntryDisplayTitleWithTime={() => "Goal A"}
+        getEntryGoalFirstTitleWithTime={() => "Goal A"}
         callbacks={callbacks}
       />
     )
@@ -89,7 +89,7 @@ describe("PlannerEventDetailDialog", () => {
         canNavigateToPreviousOpenInstance={false}
         canNavigateToNextOpenInstance
         canNavigateToLastOpenInstance
-        getEntryDisplayTitleWithTime={() => "Goal A"}
+        getEntryGoalFirstTitleWithTime={() => "Goal A"}
         callbacks={callbacks}
       />
     )
