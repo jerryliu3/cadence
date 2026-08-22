@@ -127,13 +127,13 @@ describe("selectPlannerCalendarModel", () => {
   });
 
   it("projects additional days outside the visible window", () => {
-    const offscreenDay = "2026-10-10";
+    const offscreenDay = "2026-12-10";
     const context = buildPlannerContext({
       workUnits: [
         buildPlannerWorkUnit({
           originalGoalId: "goal-1",
           unitKey: "unit-offscreen",
-          scheduledDate: "2026-10-09",
+          scheduledDate: "2026-12-09",
           creditedCompletionDate: offscreenDay,
         }),
       ],
