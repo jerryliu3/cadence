@@ -156,14 +156,14 @@ export function PlannerCalendarToolbar({
             ) : null}
           </div>
         </div>
-        <div className="flex justify-end">
+        <div className="w-full">
           <Input
             id="planner-calendar-search"
             type="search"
             value={searchQuery}
             onChange={(event) => onSearchQueryChange(event.target.value)}
             placeholder="Filter by goal or milestone name"
-            className="h-8 w-[min(100%,14rem)] text-xs"
+            className="h-8 w-full text-xs"
             aria-label="Search goals"
             disabled={loading}
           />
