@@ -45,6 +45,12 @@ vi.mock("@/features/social/group-join-card", () => ({
   GroupJoinCard: () => <div data-testid="group-join-card" />,
 }));
 
+vi.mock("@/features/social/social-freshness-indicator", () => ({
+  SocialFreshnessIndicator: ({ refreshToken }: { refreshToken?: number }) => (
+    <div data-testid="social-freshness-indicator" data-refresh-token={String(refreshToken)} />
+  ),
+}));
+
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
@@ -158,5 +164,21 @@ describe("SocialSurface refresh behavior", () => {
     });
 
     expect(invalidateSocialTabCache).toHaveBeenCalledTimes(initialRefreshCount + 1);
+  });
+
+  it("shows freshness indicator only for cron-backed tabs", async () => {
+    const user = userEvent.setup();
+    render(<SocialSurface initialTab="feed" />);
+
+    expect(screen.queryByTestId("social-freshness-indicator")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "Challenges" }));
+    expect(screen.getByTestId("social-freshness-indicator")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "Leaderboards" }));
+    expect(screen.getByTestId("social-freshness-indicator")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "Team" }));
+    expect(screen.queryByTestId("social-freshness-indicator")).not.toBeInTheDocument();
   });
 });

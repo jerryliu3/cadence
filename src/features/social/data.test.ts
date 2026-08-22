@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { resetTabDataCacheForTests } from "@/lib/cache/tab-data-cache";
 import {
   fetchSocialChallenges,
+  fetchSocialFreshness,
   fetchSocialFeedPage,
   joinSocialChallenge,
 } from "@/features/social/data";
@@ -77,5 +78,25 @@ describe("social data cache", () => {
     await fetchSocialChallenges();
 
     expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("does not cache social freshness responses", async () => {
+    const fetchMock = vi.fn().mockImplementation(async () =>
+      Response.json({
+        schemaVersion: "1",
+        freshness: {
+          serverNow: "2026-08-22T15:45:21.000Z",
+          nextExpectedRefreshAt: "2026-08-22T15:46:00.000Z",
+          leaderboardRefreshedAt: "2026-08-22T15:44:05.000Z",
+          challengesRefreshedAt: "2026-08-22T15:44:35.000Z",
+        },
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await fetchSocialFreshness();
+    await fetchSocialFreshness();
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

@@ -1,6 +1,7 @@
 import type {
   LeaderboardSeason,
   LeaderboardStanding,
+  SocialFreshness,
   SocialChallenge,
   SocialFeedEvent,
 } from "@/features/social/types";
@@ -38,6 +39,11 @@ interface SocialLeaderboardStandingsResponse {
   season: LeaderboardSeason;
   standings: LeaderboardStanding[];
   viewerRank: number | null;
+}
+
+interface SocialFreshnessResponse {
+  schemaVersion: "1";
+  freshness: SocialFreshness;
 }
 
 export type FeedReactionKind = "cheer" | "fire" | "clap" | "strong";
@@ -133,6 +139,17 @@ export async function fetchSocialFeedHead({
     await parseApiError(response, "Failed to refresh feed.");
   }
   return (await response.json()) as SocialFeedResponse;
+}
+
+export async function fetchSocialFreshness() {
+  const response = await fetch("/api/social/freshness", {
+    cache: "no-store",
+    credentials: "include",
+  });
+  if (!response.ok) {
+    await parseApiError(response, "Failed to load social freshness.");
+  }
+  return (await response.json()) as SocialFreshnessResponse;
 }
 
 export async function fetchSocialChallenges() {
