@@ -1,6 +1,8 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
+import { TabOnboardingOverlay } from "@/features/onboarding/tab-onboarding-overlay";
 import { DuoLanes } from "@/features/social/duo/duo-lanes";
 import { useDuoSurface } from "@/features/social/duo/use-duo-surface";
 import {
@@ -11,6 +13,7 @@ import {
 import type { GoalDateSort } from "@/lib/goals/list-view";
 
 export function InsightsShell() {
+  const searchParams = useSearchParams();
   const { scope, activePartner, viewer, partner } = useDuoSurface("insights");
   const [monthCursor, setMonthCursor] = useState(new Date());
   const [perGoalViewMode, setPerGoalViewMode] = useState<HeatmapViewMode>("month");
@@ -61,6 +64,12 @@ export function InsightsShell() {
 
   return (
     <div className="space-y-4">
+      <TabOnboardingOverlay
+        onboardingKey="insights.main"
+        title="Insights guide"
+        description="Use Insights to review streaks, consistency, and where your effort is compounding over time."
+        forceOpen={searchParams.get("onboarding") === "insights.main"}
+      />
       {sharePeriodControls ? (
         <>
           <DuoLanes

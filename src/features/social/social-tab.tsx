@@ -6,7 +6,10 @@ import {
   LogOut,
 } from "lucide-react";
 import type { PlannerPrimaryTabPreference } from "@cadence/shared/navigation/tabs";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { LoadingCard } from "@/components/ui/loading-card";
@@ -26,6 +29,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { requestJourneyIntroOpen } from "@/components/intro/journey-intro-overlay";
+import { TabOnboardingOverlay } from "@/features/onboarding/tab-onboarding-overlay";
+import {
+  TAB_ONBOARDING_REPLAY_LINKS,
+  clearAllTabOnboardingProgress,
+} from "@/features/onboarding/tab-onboarding";
 import { IntegrationsSettings } from "@/features/settings/integrations-settings";
 import { PlannerPreferencesSettings } from "@/features/settings/planner-preferences-settings";
 import { ReportIssueSettings } from "@/features/settings/report-issue-settings";
@@ -34,6 +42,7 @@ import { ProfileSection } from "@/features/social/profile-section";
 import { useSocialTabData } from "@/features/social/use-social-tab-data";
 
 export function SocialTab() {
+  const searchParams = useSearchParams();
   const {
     state,
     loading,
@@ -85,6 +94,12 @@ export function SocialTab() {
 
   return (
     <div className="space-y-5">
+      <TabOnboardingOverlay
+        onboardingKey="settings.profile"
+        title="Profile and settings guide"
+        description="Use this page to update profile details, replay onboarding guides, and configure planner, notifications, and integrations."
+        forceOpen={searchParams.get("onboarding") === "settings.profile"}
+      />
       <ProfileSection
         userId={state.userId}
         profile={state.profile}
@@ -131,25 +146,50 @@ export function SocialTab() {
             </button>
           ))}
           <div className="border-t p-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={requestJourneyIntroOpen}
-              >
-                Replay onboarding
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => void signOut()}
-                disabled={signingOut}
-              >
-                <LogOut className="size-4" />
-                {signingOut ? "Signing out..." : "Sign out"}
-              </Button>
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Onboarding guides
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={requestJourneyIntroOpen}
+                  >
+                    Replay app intro
+                  </Button>
+                  {TAB_ONBOARDING_REPLAY_LINKS.map((link) => (
+                    <Button key={link.key} type="button" variant="outline" size="sm" asChild>
+                      <Link href={link.href}>{link.label}</Link>
+                    </Button>
+                  ))}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      clearAllTabOnboardingProgress();
+                      toast.success("Page onboarding progress reset.");
+                    }}
+                  >
+                    Reset page guides
+                  </Button>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void signOut()}
+                  disabled={signingOut}
+                >
+                  <LogOut className="size-4" />
+                  {signingOut ? "Signing out..." : "Sign out"}
+                </Button>
+              </div>
             </div>
           </div>
         </CardContent>
