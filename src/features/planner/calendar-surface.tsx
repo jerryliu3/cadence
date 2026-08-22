@@ -908,10 +908,15 @@ export function CalendarSurface({
         return;
       }
       monthGridScrollKeyRef.current = scrollKey;
-      container.scrollTo({
-        top: Math.max(0, anchorCell.offsetTop - 40),
-        behavior: "auto",
-      });
+      const nextTop = Math.max(0, anchorCell.offsetTop - 40);
+      if (typeof container.scrollTo === "function") {
+        container.scrollTo({
+          top: nextTop,
+          behavior: "auto",
+        });
+        return;
+      }
+      container.scrollTop = nextTop;
     });
     return () => {
       window.cancelAnimationFrame(frame);
