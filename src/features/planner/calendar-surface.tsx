@@ -1442,6 +1442,7 @@ export function CalendarSurface({
               onToggleExpandedMonthRows={() =>
                 setExpandedMonthRows((current) => !current)
               }
+              onOpenMonthView={() => setCalendarViewMode("month")}
             />
             <PlannerDndProvider
               getEntryLabel={getDragEntryLabel}
