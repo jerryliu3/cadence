@@ -58,6 +58,10 @@ function isCanonicalDefaultMilestoneLabel(
   return ordinal > 0 && entry.label.trim() === defaultMilestoneName(ordinal - 1);
 }
 
+function isMilestoneUnitKey(unitKey: string) {
+  return /^milestone:\d+$/i.test(unitKey);
+}
+
 export function getEntryDisplayTitle(
   entry: Pick<PlannerDayDetailEntry, "goalTitle" | "label" | "unitKey">
 ) {
@@ -85,6 +89,20 @@ export function getEntryCompactTitle(
   return getEntryDisplayTitle(entry);
 }
 
+export function getEntryFeedTitle(
+  entry: Pick<PlannerDayDetailEntry, "goalTitle" | "label" | "unitKey">
+) {
+  const milestoneLabel = entry.label?.trim() ?? "";
+  if (
+    isMilestoneUnitKey(entry.unitKey) &&
+    milestoneLabel.length > 0 &&
+    !isDerivedCounterLabel(milestoneLabel)
+  ) {
+    return milestoneLabel;
+  }
+  return getEntryDisplayTitle(entry);
+}
+
 export function getEntryDisplayTitleWithTime(
   entry: Pick<
     PlannerDayDetailEntry,
@@ -92,6 +110,18 @@ export function getEntryDisplayTitleWithTime(
   >
 ) {
   const baseTitle = getEntryDisplayTitle(entry);
+  return entry.effectiveScheduledLocalTime
+    ? `${entry.effectiveScheduledLocalTime} ${baseTitle}`
+    : baseTitle;
+}
+
+export function getEntryFeedTitleWithTime(
+  entry: Pick<
+    PlannerDayDetailEntry,
+    "goalTitle" | "label" | "unitKey" | "effectiveScheduledLocalTime"
+  >
+) {
+  const baseTitle = getEntryFeedTitle(entry);
   return entry.effectiveScheduledLocalTime
     ? `${entry.effectiveScheduledLocalTime} ${baseTitle}`
     : baseTitle;

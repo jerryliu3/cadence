@@ -309,6 +309,42 @@ describe("CalendarSurface characterization", () => {
     });
   });
 
+  it("uses milestone label text for day feed entries when available", async () => {
+    postJsonMock.mockResolvedValue(
+      buildContext([
+        unit({
+          originalGoalId: "goal-b",
+          unitKey: "milestone:2",
+          label: "Tempo run 4x800",
+          goalDefaultLocalTime: "07:30",
+          scheduledDate: "2026-08-31",
+        }),
+      ])
+    );
+
+    render(
+      <CalendarSurface
+        activeTab="calendar"
+        month="2026-08"
+        selectedDay="2026-08-31"
+        viewMode="day"
+        onMonthChange={vi.fn()}
+        onViewModeChange={vi.fn()}
+        onSelectedDayChange={vi.fn()}
+        onPlannerMutation={vi.fn()}
+      />
+    );
+
+    const dayHeading = await screen.findByText(/Aug 31, 2026/i, { selector: "p" });
+    const dayPanel = dayHeading.closest("div");
+    if (!dayPanel) {
+      throw new Error("Expected day panel container.");
+    }
+
+    expect(within(dayPanel).getByText("07:30 Tempo run 4x800")).toBeInTheDocument();
+    expect(within(dayPanel).queryByText("07:30 Goal B")).not.toBeInTheDocument();
+  });
+
   it("force-prepares planner context after coach goals are created", async () => {
     postJsonMock.mockResolvedValue(
       buildContext([

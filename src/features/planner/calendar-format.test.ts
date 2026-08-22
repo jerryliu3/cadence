@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildWeekdayLabels,
   getEntryCompactTitle,
+  getEntryFeedTitle,
   getEntrySubtitle,
   normalizeWeekStartsOn,
 } from "@/features/planner/calendar-format";
@@ -124,5 +125,37 @@ describe("calendar compact entry titles", () => {
         unitKey: "total:3",
       })
     ).toBe("Read");
+  });
+});
+
+describe("calendar feed entry titles", () => {
+  it("uses a milestone label in feed items when available", () => {
+    expect(
+      getEntryFeedTitle({
+        goalTitle: "5k training block",
+        label: "Tempo run 4x800",
+        unitKey: "milestone:2",
+      })
+    ).toBe("Tempo run 4x800");
+  });
+
+  it("falls back to goal title for milestone entries with blank labels", () => {
+    expect(
+      getEntryFeedTitle({
+        goalTitle: "5k training block",
+        label: "   ",
+        unitKey: "milestone:2",
+      })
+    ).toBe("5k training block");
+  });
+
+  it("keeps non-milestone feed titles on goal title", () => {
+    expect(
+      getEntryFeedTitle({
+        goalTitle: "Hydration",
+        label: "Drink two liters",
+        unitKey: "total:1",
+      })
+    ).toBe("Hydration");
   });
 });
