@@ -246,7 +246,12 @@ export function BulkGoalForm({
   useEffect(() => {
     const starterPack = resolveStarterPackKey(searchParams.get("starterPack"));
     if (!starterPack) {
-      appliedStarterPackRef.current = null;
+      if (appliedStarterPackRef.current !== null) {
+        appliedStarterPackRef.current = null;
+        setDrafts([]);
+        setExpandedDraftId(null);
+        toast.success("Starter pack cleared.");
+      }
       return;
     }
     if (appliedStarterPackRef.current === starterPack) {

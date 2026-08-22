@@ -27,11 +27,12 @@ const CREATION_MODE_TABS: Array<{ key: CreationMode; label: string }> = [
   { key: "training", label: "Training Plan" },
 ];
 
-function resolveMode(
+export function resolveMode(
   rawMode: string | null,
-  allowTrainingPlan: boolean
+  allowTrainingPlan: boolean,
+  starterPack: StarterPackKey | null
 ): CreationMode {
-  if (rawMode === "multi") {
+  if (rawMode === "multi" || starterPack) {
     return "multi";
   }
   if (rawMode === "training" && allowTrainingPlan) {
@@ -44,14 +45,20 @@ export function GoalCreationEntry({ onExit }: GoalCreationEntryProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const allowTrainingPlan = process.env.NODE_ENV !== "production";
+  const starterPack = useMemo(
+    () => resolveStarterPackKey(searchParams.get("starterPack")),
+    [searchParams]
+  );
 
   const mode = useMemo(
-    () => resolveMode(searchParams.get("mode"), allowTrainingPlan),
-    [allowTrainingPlan, searchParams]
+    () => resolveMode(searchParams.get("mode"), allowTrainingPlan, starterPack),
+    [allowTrainingPlan, searchParams, starterPack]
   );
+  const fromIntroOnboarding = searchParams.get("onboarding") === "intro";
 
   const modeHref = (nextMode: CreationMode) => {
     const params = new URLSearchParams(searchParams.toString());
+    params.delete("onboarding");
     if (nextMode === "single") {
       params.delete("mode");
       params.delete("starterPack");
@@ -65,9 +72,9 @@ export function GoalCreationEntry({ onExit }: GoalCreationEntryProps) {
     return query.length > 0 ? `${pathname}?${query}` : pathname;
   };
 
-  const starterPack = resolveStarterPackKey(searchParams.get("starterPack"));
   const starterPackHref = (pack: StarterPackKey | null) => {
     const params = new URLSearchParams(searchParams.toString());
+    params.delete("onboarding");
     params.set("mode", "multi");
     if (pack) {
       params.set("starterPack", pack);
@@ -77,9 +84,31 @@ export function GoalCreationEntry({ onExit }: GoalCreationEntryProps) {
     const query = params.toString();
     return query.length > 0 ? `${pathname}?${query}` : pathname;
   };
+  const dismissOnboardingHintHref = (() => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("onboarding");
+    const query = params.toString();
+    return query.length > 0 ? `${pathname}?${query}` : pathname;
+  })();
 
   return (
     <div className="mx-auto w-full max-w-5xl">
+      {fromIntroOnboarding ? (
+        <div className="mb-4 rounded-xl border border-primary/30 bg-primary/5 p-3">
+          <p className="text-sm font-medium">Onboarding: create your first real goal</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Start with a single personalized goal, or switch to Multi mode for optional
+            starter packs.
+          </p>
+          <div className="mt-2">
+            <Button type="button" variant="ghost" size="sm" asChild>
+              <Link href={dismissOnboardingHintHref} replace>
+                Dismiss onboarding hint
+              </Link>
+            </Button>
+          </div>
+        </div>
+      ) : null}
       <div className="mb-4">
         <div className="mx-auto flex w-full max-w-xl items-end border-b border-border/70">
           {CREATION_MODE_TABS.map((tab) => {

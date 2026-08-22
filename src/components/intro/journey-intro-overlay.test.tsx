@@ -74,6 +74,18 @@ describe("JourneyIntroOverlay", () => {
     ).toBeInTheDocument();
   });
 
+  it("skip intro persists completion and routes to goal creation", async () => {
+    render(<JourneyIntroOverlay />);
+    expect(await screen.findByRole("dialog", { name: "Welcome to Goalmaxxing" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Skip intro" }));
+
+    expect(screen.queryByRole("dialog", { name: "Welcome to Goalmaxxing" })).toBeNull();
+    expect(window.localStorage.getItem(JOURNEY_ONBOARDING_COMPLETED_KEY)).toBe("done");
+    expect(window.localStorage.getItem(JOURNEY_INTRO_SEEN_KEY)).toBe(toLocalDateString());
+    expect(routerPushMock).toHaveBeenCalledWith("/goals/new?onboarding=intro");
+  });
+
   it("advances through steps, persists completion, and routes to first goal creation", async () => {
     render(<JourneyIntroOverlay />);
     expect(await screen.findByRole("dialog", { name: "Welcome to Goalmaxxing" })).toBeInTheDocument();

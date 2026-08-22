@@ -47,4 +47,19 @@ describe("starter packs", () => {
       relationshipRows.some((row) => row.category === "Relationships")
     ).toBe(true);
   });
+
+  it("uses canonical category labels for every starter pack row", () => {
+    const allowedCategories = new Set([
+      "Health",
+      "Career",
+      "Personal",
+      "Relationships",
+    ]);
+    for (const pack of STARTER_PACKS) {
+      const rows = buildStarterPackRows(pack.key, "2026-08-01");
+      for (const row of rows) {
+        expect(allowedCategories.has(String(row.category))).toBe(true);
+      }
+    }
+  });
 });

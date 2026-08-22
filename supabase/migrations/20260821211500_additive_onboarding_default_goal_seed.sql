@@ -30,7 +30,6 @@ begin
     select 1
     from public.goals goal
     where goal.owner_id = new.id
-      and goal.is_deleted = false
   ) then
     return new;
   end if;

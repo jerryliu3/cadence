@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -22,15 +22,23 @@ export function TabOnboardingOverlay({
   description,
   forceOpen = false,
 }: TabOnboardingOverlayProps) {
+  const [hydrated, setHydrated] = useState(false);
   const sessionToken = useMemo(
     () => `${forceOpen ? "force" : "default"}:${onboardingKey}`,
     [forceOpen, onboardingKey]
   );
   const [dismissedToken, setDismissedToken] = useState<string | null>(null);
-  const completed = isTabOnboardingCompleted(onboardingKey);
-  const open =
-    dismissedToken !== sessionToken &&
-    (forceOpen || !completed);
+  const completed = hydrated ? isTabOnboardingCompleted(onboardingKey) : true;
+  const open = hydrated && dismissedToken !== sessionToken && (forceOpen || !completed);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setHydrated(true);
+    }, 0);
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, []);
 
   if (!open) {
     return null;

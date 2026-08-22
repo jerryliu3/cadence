@@ -2,18 +2,19 @@
 
 import { Flag, Newspaper, Trophy, Users } from "lucide-react";
 import { useSearchParams } from "next/navigation";
-import { useState } from "react";
 import { ChallengeList } from "@/features/social/challenges/challenge-list";
 import { GroupJoinCard } from "@/features/social/group-join-card";
 import { TeamPanel } from "@/features/social/team/team-panel";
 import { FeedList } from "@/features/social/feed/feed-list";
 import { LeaderboardsPanel } from "@/features/social/leaderboards/leaderboards-panel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { TabOnboardingOverlay } from "@/features/onboarding/tab-onboarding-overlay";
+import { TAB_ONBOARDING_QUERY_PARAM } from "@/features/onboarding/tab-onboarding";
 import {
   resolveSocialSurfaceTab,
   type SocialSurfaceTab,
 } from "@/features/social/social-surface-tab";
-import { TabOnboardingOverlay } from "@/features/onboarding/tab-onboarding-overlay";
+import { useClientSearchParamsUpdater } from "@/lib/navigation/use-client-search-params-updater";
 import { cn } from "@/lib/utils";
 
 const socialSurfaceTriggerBaseClass =
@@ -28,15 +29,55 @@ const socialSurfaceTriggerToneClass =
 const selectedChipShadow =
   "inset 0 4px 7px rgba(15, 23, 42, 0.3), inset 2px 0 4px rgba(15, 23, 42, 0.16), inset -1px 0 0 rgba(255, 255, 255, 0.42), inset 0 -2px 1px rgba(255, 255, 255, 0.72)";
 
+export function resolveSocialOnboardingTab(
+  onboardingValue: string | null
+): SocialSurfaceTab | null {
+  if (!onboardingValue || !onboardingValue.startsWith("social.")) {
+    return null;
+  }
+  return resolveSocialSurfaceTab(onboardingValue.slice("social.".length));
+}
+
+export function resolveActiveSocialTab({
+  initialTab,
+  tabParam,
+  onboardingParam,
+}: {
+  initialTab?: string;
+  tabParam: string | null;
+  onboardingParam: string | null;
+}): SocialSurfaceTab {
+  if (tabParam) {
+    return resolveSocialSurfaceTab(tabParam);
+  }
+  const onboardingTab = resolveSocialOnboardingTab(onboardingParam);
+  if (onboardingTab) {
+    return onboardingTab;
+  }
+  return resolveSocialSurfaceTab(initialTab);
+}
+
+export function applySocialTabSearchParams(
+  params: URLSearchParams,
+  nextTab: SocialSurfaceTab
+) {
+  params.delete(TAB_ONBOARDING_QUERY_PARAM);
+  params.set("tab", nextTab);
+}
+
 export function SocialSurface({
   initialTab,
 }: {
   initialTab?: string;
 }) {
   const searchParams = useSearchParams();
-  const defaultTab: SocialSurfaceTab = resolveSocialSurfaceTab(initialTab);
-  const [activeTab, setActiveTab] = useState<SocialSurfaceTab>(defaultTab);
-  const requestedOnboardingKey = searchParams.get("onboarding");
+  const { applySearchParams } = useClientSearchParamsUpdater();
+  const requestedOnboardingKey = searchParams.get(TAB_ONBOARDING_QUERY_PARAM);
+  const activeTab = resolveActiveSocialTab({
+    initialTab,
+    tabParam: searchParams.get("tab"),
+    onboardingParam: requestedOnboardingKey,
+  });
   const onboardingKey = `social.${activeTab}` as const;
   const onboardingTitle =
     activeTab === "challenges"
@@ -65,7 +106,12 @@ export function SocialSurface({
       />
       <Tabs
         value={activeTab}
-        onValueChange={(value) => setActiveTab(value as SocialSurfaceTab)}
+        onValueChange={(value) => {
+          const nextTab = resolveSocialSurfaceTab(value);
+          applySearchParams((params) => {
+            applySocialTabSearchParams(params, nextTab);
+          }, "push");
+        }}
         className="flex flex-col gap-4"
       >
         <TabsList

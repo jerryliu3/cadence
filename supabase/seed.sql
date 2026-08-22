@@ -651,7 +651,6 @@ where not exists (
   from public.goals goal
   where goal.owner_id = '44444444-4444-4444-8444-444444444444'
     and goal.title = defaults.title
-    and goal.is_deleted = false
 );
 
 insert into public.goal_links (owner_id, source_goal_id, target_goal_id)

@@ -31,7 +31,7 @@ describe("TabOnboardingOverlay", () => {
     ).toBe("done");
   });
 
-  it("stays hidden after completion unless force-opened", () => {
+  it("stays hidden after completion unless force-opened", async () => {
     window.localStorage.setItem(
       "cadence.tab_onboarding_completed.v1:planner.checklist",
       "done"
@@ -54,6 +54,38 @@ describe("TabOnboardingOverlay", () => {
         forceOpen
       />
     );
-    expect(screen.getByRole("dialog", { name: "Planner guide" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("dialog", { name: "Planner guide" })
+    ).toBeInTheDocument();
+  });
+
+  it("dismisses a force-open replay for the current render token", async () => {
+    window.localStorage.setItem(
+      "cadence.tab_onboarding_completed.v1:planner.checklist",
+      "done"
+    );
+
+    const { rerender } = render(
+      <TabOnboardingOverlay
+        onboardingKey="planner.checklist"
+        title="Planner guide"
+        description="Use checklist to focus today."
+        forceOpen
+      />
+    );
+
+    expect(await screen.findByRole("dialog", { name: "Planner guide" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+    expect(screen.queryByRole("dialog", { name: "Planner guide" })).toBeNull();
+
+    rerender(
+      <TabOnboardingOverlay
+        onboardingKey="planner.checklist"
+        title="Planner guide"
+        description="Use checklist to focus today."
+        forceOpen
+      />
+    );
+    expect(screen.queryByRole("dialog", { name: "Planner guide" })).toBeNull();
   });
 });
