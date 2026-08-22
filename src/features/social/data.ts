@@ -42,7 +42,7 @@ interface SocialLeaderboardStandingsResponse {
 
 export type FeedReactionKind = "cheer" | "fire" | "clap" | "strong";
 export const SOCIAL_TAB_CACHE_PREFIX = "social:";
-const SOCIAL_FEED_CACHE_TTL_MS = 15 * 1000;
+const SOCIAL_FEED_CACHE_TTL_MS = 60 * 1000;
 
 async function parseApiError(response: Response, fallbackMessage: string) {
   const errorBody = (await response.json().catch(() => ({}))) as {
