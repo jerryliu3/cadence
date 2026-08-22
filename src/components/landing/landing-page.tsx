@@ -4,7 +4,6 @@ import { LandingFeatureBento } from "@/components/landing/landing-feature-bento"
 import { LandingFeatureNarrative } from "@/components/landing/landing-feature-narrative";
 import { LandingPlannerPreview } from "@/components/landing/landing-planner-preview";
 import { LandingProductTour } from "@/components/landing/landing-product-tour";
-import { LandingWhyGoalmaxxing } from "@/components/landing/landing-why-goalmaxxing";
 import { Button } from "@/components/ui/button";
 
 const primaryCtaClassName =
@@ -60,7 +59,7 @@ export function LandingPage() {
                 </Link>
               </Button>
               <Button asChild variant="outline" size="lg">
-                <Link href="#why-goalmaxxing">Read story</Link>
+                <Link href="#why-goalmaxxing">Read why</Link>
               </Button>
             </div>
           </div>
@@ -68,10 +67,9 @@ export function LandingPage() {
           <LandingPlannerPreview />
         </section>
 
-        <LandingFeatureNarrative />
         <LandingProductTour />
         <LandingFeatureBento />
-        <LandingWhyGoalmaxxing />
+        <LandingFeatureNarrative />
 
         <section className="mx-auto w-full max-w-6xl px-4 py-16 text-center sm:px-6">
           <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
@@ -101,7 +99,10 @@ export function LandingPage() {
       <footer className="border-t py-6">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 text-sm text-muted-foreground sm:px-6">
           <span>Goalmaxxing</span>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            <Button asChild variant="outline" size="sm">
+              <a href="mailto:hello@goalmaxxing.xyz">Contact</a>
+            </Button>
             <Link href="/privacy" className="hover:text-foreground">
               Privacy
             </Link>

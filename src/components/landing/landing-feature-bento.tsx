@@ -90,7 +90,7 @@ function RecoveryCard() {
             Recover your rhythm
           </h3>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-            A disrupted week does not have to erase the plan. Re-place unfinished
+            A disrupted day does not ruin the plan. Automatically adjust unfinished
             sessions into dates that still work.
           </p>
         </div>

@@ -2,9 +2,7 @@ import type { ReactNode } from "react";
 import {
   Bell,
   CalendarDays,
-  Check,
   ChevronRight,
-  Flame,
   Globe2,
   Heart,
   LineChart,
@@ -14,11 +12,13 @@ import {
   Trophy,
   Users,
 } from "lucide-react";
+import { LandingGoalCreationDemo } from "@/components/landing/landing-goal-creation-demo";
+import { LandingPlannerSurfaceTour } from "@/components/landing/landing-planner-surface-tour";
 
-const heatmapLevels = [
-  0, 1, 0, 2, 3, 0, 1, 2, 4, 3, 0, 1, 2, 0, 3, 4, 2, 1, 0, 2, 3, 4, 4, 2, 1,
-  0, 3, 2, 4, 1, 2, 3, 0, 4, 3,
-] as const;
+const heatmapLevels = Array.from({ length: 140 }, (_, index) => {
+  const pattern = [0, 1, 0, 2, 3, 0, 1, 2, 4, 3, 1, 2, 0, 3, 4, 2] as const;
+  return pattern[index % pattern.length];
+});
 
 const heatmapClasses = [
   "bg-slate-100",
@@ -59,104 +59,45 @@ function TourPanel({
   );
 }
 
-function ChecklistVisual() {
-  return (
-    <div className="overflow-hidden rounded-2xl border bg-card shadow-[0_18px_55px_-35px_rgba(37,99,235,0.5)]">
-      <div className="flex items-center justify-between border-b px-4 py-3">
-        <div>
-          <p className="text-xs font-semibold">Thursday, Aug 15</p>
-          <p className="text-[10px] text-muted-foreground">Today&apos;s goals</p>
-        </div>
-        <div className="flex rounded-lg bg-muted p-1 text-[9px]">
-          <span className="rounded-md px-2 py-1 text-muted-foreground">Calendar</span>
-          <span className="rounded-md bg-background px-2 py-1 font-semibold shadow-sm">
-            Checklist
-          </span>
-          <span className="rounded-md px-2 py-1 text-muted-foreground">Tasks</span>
-        </div>
-      </div>
-      <div className="space-y-3 p-4">
-        <div>
-          <p className="mb-1.5 text-[9px] font-semibold tracking-wide text-muted-foreground uppercase">
-            Daily
-          </p>
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50/70 p-2.5">
-              <span className="inline-flex size-5 items-center justify-center rounded-md bg-emerald-600 text-white">
-                <Check className="size-3" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-[11px] font-medium line-through opacity-70">
-                  Deep work
-                </p>
-                <p className="text-[9px] text-muted-foreground">
-                  Career · Daily recurring
-                </p>
-              </div>
-              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[8px] font-medium text-emerald-800">
-                Done
-              </span>
-            </div>
-            <div className="flex items-center gap-2 rounded-lg border p-2.5">
-              <span className="size-5 rounded-md border border-slate-300 bg-white" />
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-[11px] font-medium">Read 10 pages</p>
-                <p className="text-[9px] text-muted-foreground">
-                  Personal · Daily recurring
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          <div className="rounded-lg border p-2">
-            <p className="text-[8px] font-semibold text-muted-foreground uppercase">
-              Weekly
-            </p>
-            <p className="mt-1 text-[10px] font-medium">Long run</p>
-          </div>
-          <div className="rounded-lg border p-2">
-            <p className="text-[8px] font-semibold text-muted-foreground uppercase">
-              Milestones
-            </p>
-            <p className="mt-1 text-[10px] font-medium">Launch · 2/4</p>
-          </div>
-        </div>
-      </div>
-      <div className="flex items-center justify-between border-t bg-muted/25 px-4 py-2.5">
-        <div className="flex items-center gap-2">
-          <ListChecks className="size-3.5 text-muted-foreground" />
-          <span className="text-[10px] font-medium">Tasks for this day</span>
-        </div>
-        <span className="text-[9px] text-muted-foreground">2 one-time tasks</span>
-      </div>
-    </div>
-  );
-}
-
 function InsightsVisual() {
   return (
     <div className="rounded-2xl border bg-card p-4 shadow-[0_18px_55px_-35px_rgba(5,150,105,0.5)]">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold">Morning run</p>
-          <p className="text-[10px] text-muted-foreground">
-            82% · 12/15 completions
-          </p>
-        </div>
-        <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2 py-1 text-[9px] font-medium text-orange-800">
-          <Flame className="size-3" />
-          7 day streak
-        </span>
+      <div>
+        <p className="text-xs font-semibold">Morning run</p>
+        <p className="text-[10px] text-muted-foreground">
+          80% · 12/15 completions
+        </p>
       </div>
 
-      <div className="mt-4 grid grid-cols-7 gap-1">
-        {heatmapLevels.map((level, index) => (
-          <span
-            key={`${level}-${index}`}
-            className={`aspect-square rounded-[3px] ${heatmapClasses[level]}`}
-          />
-        ))}
+      <div className="mt-4 w-full min-w-0">
+        <div className="mb-1 flex w-full justify-between text-[8px] text-muted-foreground">
+          <span>Apr</span>
+          <span>May</span>
+          <span>Jun</span>
+          <span>Jul</span>
+          <span>Aug</span>
+        </div>
+        <div
+          data-testid="insights-heatmap"
+          className="grid h-[72px] w-full grid-flow-col grid-rows-7 auto-cols-fr gap-[3px]"
+        >
+          {heatmapLevels.map((level, index) => {
+            const selected = index === 118;
+            return (
+              <span
+                key={`${level}-${index}`}
+                data-testid="heatmap-cell"
+                role={selected ? "img" : undefined}
+                aria-label={
+                  selected ? "August 10 selected for history edit" : undefined
+                }
+                className={`min-w-0 rounded-[2px] ${heatmapClasses[level]} ${
+                  selected ? "ring-2 ring-blue-500 ring-offset-1" : ""
+                }`}
+              />
+            );
+          })}
+        </div>
       </div>
       <div className="mt-2 flex items-center justify-between">
         <div className="flex items-center gap-1 text-[8px] text-muted-foreground">
@@ -166,10 +107,15 @@ function InsightsVisual() {
           ))}
           <span>More</span>
         </div>
-        <span className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[9px] font-medium">
-          <Pencil className="size-3" />
-          Edit history
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-[8px] font-medium text-blue-700">
+            Aug 10 selected
+          </span>
+          <span className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[9px] font-medium">
+            <Pencil className="size-3" />
+            Edit history
+          </span>
+        </div>
       </div>
 
       <div className="mt-4 rounded-xl border bg-emerald-50/40 p-3">
@@ -338,29 +284,36 @@ export function LandingProductTour() {
             Built for the full loop
           </h2>
           <p className="mt-4 text-muted-foreground sm:text-lg">
-            Plan the work, execute your way, understand the pattern, and keep the
-            right people close.
+            Start from a sentence, execute your way, understand the pattern, and
+            keep the right people close.
           </p>
         </div>
 
         <TourPanel
+          eyebrow="Create"
+          title="Start in one sentence"
+          description="Describe the plan in natural language, or configure every field yourself. Review the drafts, then create them in one click."
+          visual={<LandingGoalCreationDemo />}
+        />
+        <TourPanel
           eyebrow="Planner"
           title="Execute your way"
           description="Use the visual calendar when timing matters, then switch to a focused checklist when it is time to work. Recurring goals and one-time tasks stay distinct."
-          visual={<ChecklistVisual />}
+          visual={<LandingPlannerSurfaceTour />}
+          reverse
         />
         <TourPanel
           eyebrow="Insights"
           title="See your patterns"
-          description="Heatmaps, completion rates, streaks, and thirty-day trends reveal what is compounding. Correct a forgotten past completion without losing the bigger picture."
+          description="Heatmaps, completion rates, and thirty-day trends reveal what is compounding. Easily edit past completion when needed so nothing is missed."
           visual={<InsightsVisual />}
-          reverse
         />
         <TourPanel
           eyebrow="Community"
           title="Progress together"
           description="Celebrate real progress in the feed, compete in seasonal leaderboards, and build a focused accountability loop with one trusted partner."
           visual={<CommunityVisual />}
+          reverse
         />
         <PersonalizationStrip />
       </div>

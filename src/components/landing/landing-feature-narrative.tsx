@@ -1,40 +1,31 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { BarChart3, CalendarDays, Users } from "lucide-react";
+import { CalendarClock, Repeat2, Users } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export const featureScenes = [
   {
-    title: "Plan with clarity",
-    description:
-      "Shape short-term actions and long-term milestones in one planner so each day serves the bigger outcome.",
-    supportingText:
-      "Map recurring effort, fixed dates, and linked outcomes in the same weekly plan.",
-    icon: CalendarDays,
+    title: "Too habit-focused",
+    summary: "Streaks reward repetition, not meaningful outcomes.",
+    reasoning:
+      "Goalmaxxing plans beyond daily habits so today's actions still connect to the weeks and months ahead.",
+    icon: Repeat2,
   },
   {
-    title: "Track real progress",
-    description:
-      "See completion trends, active streaks, and heatmap patterns instead of guessing whether effort is compounding.",
-    supportingText:
-      "Review real activity across days, weeks, months, and individual goals.",
-    icon: BarChart3,
+    title: "Too rigid",
+    summary: "Real goals do not always follow fixed daily patterns.",
+    reasoning:
+      "When a day slips, unfinished sessions can move to dates that still work—without throwing away the month.",
+    icon: CalendarClock,
   },
   {
-    title: "Stay accountable",
-    description:
-      "Celebrate progress in Community and keep a trusted partner close through focused duo tools.",
-    supportingText:
-      "Use feed events, Cheers, partner nudges, and side-by-side progress while controlling visibility.",
+    title: "Too isolated",
+    summary: "Progress is harder without shared accountability.",
+    reasoning:
+      "Celebrate real progress in Community, keep one trusted partner close, and control what stays visible.",
     icon: Users,
   },
-] as const;
-
-export const progressMetrics = [
-  { label: "Completion rate", value: "82%", width: 82 },
-  { label: "Current month activities", value: "24", width: 68 },
-  { label: "Active streak", value: "7 days", width: 76 },
 ] as const;
 
 export const accountabilityEvents = [
@@ -61,6 +52,67 @@ export function selectFeatureIndex(cardCenters: number[], anchor: number) {
     const bestDistance = Math.abs(cardCenters[best] - anchor);
     return Math.abs(center - anchor) < bestDistance ? index : best;
   }, 0);
+}
+
+function FeatureSceneVisual({ index }: { index: number }) {
+  if (index === 0) {
+    return (
+      <div className="w-full rounded-xl border bg-blue-50/70 p-4">
+        <p className="text-xs font-medium text-blue-950">Outcome over repetition</p>
+        <div className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
+          <div className="rounded-lg border border-slate-200 bg-white p-2.5">
+            <p className="font-semibold text-slate-500">Daily only</p>
+            <p className="mt-1 text-slate-600">Check the box again tomorrow</p>
+          </div>
+          <div className="rounded-lg border border-blue-200 bg-white p-2.5">
+            <p className="font-semibold text-blue-900">Week and month</p>
+            <p className="mt-1 text-blue-700">Ship onboarding · Raise activation</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (index === 1) {
+    return (
+      <div className="w-full rounded-xl border bg-orange-50/70 p-4">
+        <p className="text-xs font-medium text-orange-950">Keep the plan moving</p>
+        <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-2 text-[11px]">
+          <div className="rounded-lg border border-dashed border-slate-300 bg-white p-2.5">
+            <p className="font-semibold text-slate-500">Missed Thursday</p>
+            <p className="mt-1 text-slate-600 line-through">Tempo run</p>
+          </div>
+          <span className="text-orange-700">→</span>
+          <div className="rounded-lg border border-emerald-200 bg-white p-2.5">
+            <p className="font-semibold text-emerald-800">Next opening</p>
+            <p className="mt-1 text-emerald-950">Friday · 7:00 AM</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full rounded-xl border bg-violet-50/70 p-3.5">
+      <p className="text-xs font-medium text-violet-950">Accountability loop</p>
+      <div className="mt-3 space-y-2 text-[11px]">
+        {accountabilityEvents.map((event) => (
+          <div
+            key={event.kind}
+            className="rounded-lg border border-violet-200 bg-white p-2.5"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <p className="font-medium text-violet-900">{event.eyebrow}</p>
+              <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[9px] font-medium text-violet-800">
+                {event.action}
+              </span>
+            </div>
+            <p className="mt-1 text-violet-800">{event.copy}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 export function LandingFeatureNarrative() {
@@ -107,11 +159,27 @@ export function LandingFeatureNarrative() {
     featureScenes[activeFeatureIndex] ?? featureScenes[0];
 
   return (
-    <section className="border-y bg-card/30">
-      <div className="mx-auto grid w-full max-w-6xl gap-8 px-4 py-12 sm:px-6 md:grid-cols-2 md:items-start md:gap-10">
-        <div className="space-y-6">
-          {featureScenes.map(
-            ({ title, description, supportingText, icon: Icon }, index) => (
+    <section
+      id="why-goalmaxxing"
+      className="scroll-mt-20 border-y bg-card/30"
+    >
+      <div className="mx-auto w-full max-w-6xl px-4 py-12 sm:px-6 md:py-16">
+        <div className="mb-8 max-w-3xl">
+          <p className="text-xs font-semibold tracking-[0.16em] text-orange-700 uppercase">
+            Why Goalmaxxing
+          </p>
+          <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
+            Most productivity apps stop at today.
+          </h2>
+          <p className="mt-3 leading-relaxed text-muted-foreground">
+            Real goals change week to week. They need room to adapt, a view of what
+            comes next, and people who help you keep moving.
+          </p>
+        </div>
+
+        <div className="grid gap-8 md:grid-cols-2 md:items-start md:gap-10">
+          <div className="space-y-6">
+            {featureScenes.map(({ title, summary, reasoning, icon: Icon }, index) => (
               <article
                 key={title}
                 ref={(element) => {
@@ -119,132 +187,64 @@ export function LandingFeatureNarrative() {
                 }}
                 data-feature-index={index}
                 data-feature-active={activeFeatureIndex === index}
-                className={`flex min-h-[260px] flex-col justify-center rounded-2xl border p-5 transition duration-300 md:h-[clamp(280px,38vh,360px)] md:min-h-0 ${
+                className={`flex min-h-[220px] flex-col justify-center rounded-2xl border p-5 transition duration-300 md:h-[clamp(320px,42vh,420px)] md:min-h-0 ${
                   activeFeatureIndex === index
-                    ? "border-blue-400/70 bg-card shadow-[0_16px_50px_-30px_rgba(37,99,235,0.55)]"
+                    ? "border-orange-300 bg-card shadow-[0_16px_50px_-30px_rgba(234,88,12,0.45)]"
                     : "border-border/80 bg-background/60"
                 }`}
               >
-                <div className="inline-flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <div className="inline-flex size-9 items-center justify-center rounded-lg bg-orange-100 text-orange-800">
                   <Icon className="size-4" />
                 </div>
-                <h3 className="mt-3 text-xl font-semibold tracking-tight">{title}</h3>
-                <p className="mt-2 text-sm text-muted-foreground sm:text-base">
-                  {description}
+                <h3 className="mt-3 text-2xl font-semibold tracking-tight">{title}</h3>
+                <p className="mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground">
+                  {summary}
                 </p>
-                <p className="mt-2 text-sm text-muted-foreground/90">
-                  {supportingText}
-                </p>
+                <div className="mt-4 md:hidden">
+                  <p className="text-sm leading-relaxed text-muted-foreground">
+                    {reasoning}
+                  </p>
+                  <div className="mt-4">
+                    <FeatureSceneVisual index={index} />
+                  </div>
+                </div>
               </article>
-            )
-          )}
-        </div>
+            ))}
+          </div>
 
-        <div className="md:sticky md:top-24 md:h-[clamp(280px,38vh,360px)] md:self-start">
-          <Card className="relative h-full min-h-[260px] overflow-hidden border shadow-sm md:min-h-0">
-            <CardHeader className="pb-3">
-              <CardTitle
-                className="text-base"
-                data-feature-scene={activeFeatureIndex}
-                aria-live="polite"
-              >
-                {activeFeatureScene.title}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="relative min-h-[190px] md:h-[calc(100%-4rem)]">
-              <div
-                aria-hidden={activeFeatureIndex !== 0}
-                className={`absolute inset-0 flex items-center px-5 pb-5 transition duration-400 ${
-                  activeFeatureIndex === 0
-                    ? "translate-y-0 opacity-100"
-                    : "pointer-events-none translate-y-2 opacity-0"
-                }`}
-              >
-                <div className="w-full rounded-xl border bg-blue-50/70 p-4">
-                  <p className="text-xs font-medium text-blue-950">Sprint focus map</p>
-                  <div className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
-                    <div className="rounded-lg border border-blue-200 bg-white p-2.5">
-                      <p className="font-semibold text-blue-900">Short-term</p>
-                      <p className="mt-1 text-blue-700">Ship onboarding flow</p>
-                    </div>
-                    <div className="rounded-lg border border-violet-200 bg-white p-2.5">
-                      <p className="font-semibold text-violet-900">Long-term</p>
-                      <p className="mt-1 text-violet-700">Raise weekly activation</p>
+          <div className="hidden md:sticky md:top-24 md:block md:h-[clamp(320px,42vh,420px)] md:self-start">
+            <Card className="relative h-full min-h-[260px] overflow-hidden border shadow-sm md:min-h-0">
+              <CardHeader className="pb-3">
+                <CardTitle
+                  className="text-base"
+                  data-feature-scene={activeFeatureIndex}
+                  aria-live="polite"
+                >
+                  {activeFeatureScene.title}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="relative min-h-[190px] md:h-[calc(100%-4rem)]">
+                {featureScenes.map((scene, index) => (
+                  <div
+                    key={scene.title}
+                    aria-hidden={activeFeatureIndex !== index}
+                    className={`absolute inset-0 flex items-center px-5 pb-5 transition duration-400 ${
+                      activeFeatureIndex === index
+                        ? "translate-y-0 opacity-100"
+                        : "pointer-events-none translate-y-2 opacity-0"
+                    }`}
+                  >
+                    <div className="w-full space-y-4">
+                      <p className="text-sm leading-relaxed text-muted-foreground">
+                        {scene.reasoning}
+                      </p>
+                      <FeatureSceneVisual index={index} />
                     </div>
                   </div>
-                  <p className="mt-3 text-[11px] text-blue-900/80">
-                    Every daily task links back to one outcome target.
-                  </p>
-                </div>
-              </div>
-
-              <div
-                aria-hidden={activeFeatureIndex !== 1}
-                className={`absolute inset-0 flex items-center px-5 pb-5 transition duration-400 ${
-                  activeFeatureIndex === 1
-                    ? "translate-y-0 opacity-100"
-                    : "pointer-events-none translate-y-2 opacity-0"
-                }`}
-              >
-                  <div className="w-full rounded-xl border bg-emerald-50/65 p-3.5">
-                  <p className="text-xs font-medium text-emerald-950">
-                    Progress patterns
-                  </p>
-                  <div className="mt-3 space-y-2.5">
-                    {progressMetrics.map((metric) => (
-                      <div key={metric.label}>
-                        <div className="flex items-center justify-between text-[11px]">
-                          <span className="text-emerald-900">{metric.label}</span>
-                          <span className="font-medium text-emerald-950">
-                            {metric.value}
-                          </span>
-                        </div>
-                        <div className="mt-1 h-2 rounded-full bg-emerald-100">
-                          <div
-                            className="h-2 rounded-full bg-emerald-500 transition-all duration-500"
-                            style={{ width: `${metric.width}%` }}
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div
-                aria-hidden={activeFeatureIndex !== 2}
-                className={`absolute inset-0 flex items-center px-5 pb-5 transition duration-400 ${
-                  activeFeatureIndex === 2
-                    ? "translate-y-0 opacity-100"
-                    : "pointer-events-none translate-y-2 opacity-0"
-                }`}
-              >
-                  <div className="w-full rounded-xl border bg-violet-50/70 p-3.5">
-                  <p className="text-xs font-medium text-violet-950">
-                    Accountability loop
-                  </p>
-                  <div className="mt-3 space-y-2 text-[11px]">
-                    {accountabilityEvents.map((event) => (
-                      <div
-                        key={event.kind}
-                        className="rounded-lg border border-violet-200 bg-white p-2.5"
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <p className="font-medium text-violet-900">
-                            {event.eyebrow}
-                          </p>
-                          <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[9px] font-medium text-violet-800">
-                            {event.action}
-                          </span>
-                        </div>
-                        <p className="mt-1 text-violet-800">{event.copy}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+                ))}
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
     </section>
