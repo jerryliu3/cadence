@@ -25,11 +25,14 @@ export default async function AuthenticatedLayout({
     redirect("/login");
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("display_name, username, avatar_url, planner_primary_tab")
-    .eq("id", user.id)
-    .maybeSingle();
+  const [{ data: profile }, duo] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("display_name, username, avatar_url, planner_primary_tab")
+      .eq("id", user.id)
+      .maybeSingle(),
+    loadDuoContext({ supabase }),
+  ]);
   const plannerPrimaryTabPreference = normalizePlannerPrimaryTabPreference(
     profile?.planner_primary_tab
   );
@@ -60,7 +63,6 @@ export default async function AuthenticatedLayout({
     metadataUsername ||
     emailLocalPart ||
     "You";
-  const duo = await loadDuoContext({ supabase });
   const flags = getFeatureFlags();
   const journeyFlags = {
     journeyEnabled: flags.journeyEnabled,
