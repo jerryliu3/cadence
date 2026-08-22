@@ -13,6 +13,20 @@ const validMove = {
 };
 
 describe("planDraftMove", () => {
+  it("returns detailed guidance when a session is missing from the current preview", () => {
+    const result = planDraftMove({
+      ...validMove,
+      entry: buildPlannerDayEntry(),
+      previewUnit: undefined,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      message:
+        "This session is unavailable in the current preview. Linked target goals stay hidden until the day after linked source coverage ends, so overlap dates cannot be used.",
+    });
+  });
+
   it("allows manually moving historical sessions when a draft move window exists", () => {
     const result = planDraftMove({
       ...validMove,

@@ -183,6 +183,42 @@ describe("selectPlannerCalendarModel", () => {
     );
   });
 
+  it("does not treat linked-target suppression as a planner warning", () => {
+    const context = buildPlannerContext({
+      overrides: {
+        goalTitles: {
+          "goal-a": "Goal A",
+          "goal-b": "Goal B",
+        },
+      },
+    });
+    if (!context.preview) {
+      throw new Error("Expected preview payload.");
+    }
+    context.links = [
+      {
+        sourceGoalId: "goal-a",
+        targetGoalId: "goal-b",
+        targetSuppressionKind: "until",
+        targetResumesOn: "2026-09-01",
+      },
+    ];
+    context.preview = {
+      ...context.preview,
+      eligibility: [{ goalId: "goal-b", eligible: false, reason: "linked_target" }],
+    };
+
+    const model = selectPlannerCalendarModel(
+      buildArgs({
+        context,
+      })
+    );
+
+    expect(model.warningModel.hasPlannerWarnings).toBe(false);
+    expect(model.warningModel.plannerWarningSeverity).toBe("none");
+    expect(model.eligibilityNotices.linkedTargetCount).toBe(1);
+  });
+
   it("filters day entries by goal title and milestone label search query", () => {
     const context = buildContextWithPersistedPlan(
       [

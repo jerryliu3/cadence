@@ -1,6 +1,6 @@
 import type { PlannerEligibilityNotices } from "@/features/planner/planner-eligibility-notices";
 
-export type PlannerWarningSeverity = "none" | "informational" | "actionable";
+export type PlannerWarningSeverity = "none" | "actionable";
 
 export interface PlannerWarningModel {
   warningSuggestedNextSteps: string[];
@@ -35,22 +35,12 @@ export function selectPlannerWarningModel({
   }
 
   const hasPlannerWarnings =
-    unplaceableGoalCount > 0 ||
-    eligibilityNotices.hardIneligible.length > 0 ||
-    eligibilityNotices.linkedTargetCount > 0;
+    unplaceableGoalCount > 0 || eligibilityNotices.hardIneligible.length > 0;
   const plannerWarningSeverity: PlannerWarningSeverity = !hasPlannerWarnings
     ? "none"
-    : unplaceableGoalCount > 0 || eligibilityNotices.hardIneligible.length > 0
-      ? "actionable"
-      : "informational";
+    : "actionable";
   const plannerWarningBannerCopy =
-    plannerWarningSeverity === "actionable"
-      ? "Some goals need updates before the calendar can be fully scheduled."
-      : `${eligibilityNotices.linkedTargetCount} linked main goal${
-          eligibilityNotices.linkedTargetCount === 1 ? "" : "s"
-        } ${
-          eligibilityNotices.linkedTargetCount === 1 ? "is" : "are"
-        } hidden this month while linked subgoals are still active.`;
+    "Some goals need updates before the calendar can be fully scheduled.";
 
   return {
     warningSuggestedNextSteps,

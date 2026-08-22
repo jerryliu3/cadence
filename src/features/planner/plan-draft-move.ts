@@ -80,7 +80,8 @@ export function planDraftMove({
   if (!previewUnit) {
     return {
       ok: false,
-      message: "This session is unavailable in the current preview.",
+      message:
+        "This session is unavailable in the current preview. Linked target goals stay hidden until the day after linked source coverage ends, so overlap dates cannot be used.",
     };
   }
   if (previewUnit.locked) {

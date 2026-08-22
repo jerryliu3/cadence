@@ -111,11 +111,7 @@ export function PlannerWarningsPanel({
                     ? `${eligibilityNotices.hardIneligible.length} goal${
                         eligibilityNotices.hardIneligible.length === 1 ? "" : "s"
                       } need updates before they can be fully planned.`
-                    : `${eligibilityNotices.linkedTargetCount} linked main goal${
-                        eligibilityNotices.linkedTargetCount === 1 ? "" : "s"
-                      } ${
-                        eligibilityNotices.linkedTargetCount === 1 ? "is" : "are"
-                      } hidden this month while linked subgoals are still active.`}
+                    : "Review planner warnings and resolve any blockers before saving."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 text-sm">
@@ -181,29 +177,6 @@ export function PlannerWarningsPanel({
                     ))}
                   </div>
                 ))}
-              </div>
-            ) : null}
-            {eligibilityNotices.linkedTargetCount > 0 ? (
-              <div className="space-y-2">
-                <p className="text-xs font-medium text-muted-foreground">
-                  Linked main goals hidden this month
-                </p>
-                <div
-                  className={`space-y-1 rounded-md border bg-muted/20 p-2 text-xs text-muted-foreground ${
-                    eligibilityNotices.linkedTargetDetails.length > 5
-                      ? "max-h-36 overflow-y-auto pr-1"
-                      : ""
-                  }`}
-                >
-                  {eligibilityNotices.linkedTargetDetails.map((detail) => (
-                    <p key={`linked-target-warning-${detail.goalId}`}>
-                      {detail.goalTitle}: {detail.statusCopy}
-                      {detail.sourceGoalTitles.length > 0
-                        ? ` Linked subgoals: ${detail.sourceGoalTitles.join(", ")}.`
-                        : ""}
-                    </p>
-                  ))}
-                </div>
               </div>
             ) : null}
             {(invalidLockGoalCount > 0 || capacityWarningGoalCount > 0) &&

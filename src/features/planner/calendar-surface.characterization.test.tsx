@@ -1260,7 +1260,7 @@ describe("CalendarSurface characterization", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("hides linked-target ineligibility from the warning detail list", async () => {
+  it("keeps linked-target suppression out of warnings and in calendar help", async () => {
     const context = buildContext([
       unit({
         originalGoalId: "goal-a",
@@ -1317,16 +1317,29 @@ describe("CalendarSurface characterization", () => {
       )
     ).not.toBeInTheDocument();
     expect(
-      within(dialog).getByText(/Linked main goals hidden this month/i)
-    ).toBeInTheDocument();
+      within(dialog).queryByText(/Linked main goals hidden this month/i)
+    ).not.toBeInTheDocument();
     expect(
-      within(dialog).getByText(
+      within(dialog).queryByText(
         /Goal B: hidden while linked subgoals are still active/i
+      )
+    ).not.toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Back to calendar" }));
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Open calendar help" }));
+    const helpDialog = await screen.findByRole("dialog");
+    fireEvent.click(within(helpDialog).getByRole("button", { name: "See hidden goals" }));
+    expect(
+      within(helpDialog).getByText(
+        /Goal B: hidden while linked subgoals are still active Linked source goals: Goal A\./i
       )
     ).toBeInTheDocument();
   });
 
-  it("shows linked-target warning details even without hard eligibility blockers", async () => {
+  it("shows linked-target suppression in calendar help without warning banner", async () => {
     const context = buildContext([
       unit({
         originalGoalId: "goal-a",
@@ -1365,13 +1378,18 @@ describe("CalendarSurface characterization", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "See warnings" })).toBeInTheDocument();
+      expect(postJsonMock).toHaveBeenCalled();
     });
-    fireEvent.click(screen.getByRole("button", { name: "See warnings" }));
+    expect(
+      screen.queryByRole("button", { name: "See warnings" })
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open calendar help" }));
     const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "See hidden goals" }));
     expect(
       within(dialog).getByText(
-        /Goal B: hidden this month, returns Sep 1, 2026 Linked subgoals: Goal A\./i
+        /Goal B: hidden this month, returns Sep 1, 2026 Linked source goals: Goal A\./i
       )
     ).toBeInTheDocument();
   });

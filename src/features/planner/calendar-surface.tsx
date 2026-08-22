@@ -1319,6 +1319,7 @@ export function CalendarSurface({
               viewHeading={viewHeading}
               showTodayShortcut={showTodayShortcut}
               expandedMonthRows={expandedMonthRows}
+              linkedTargetDetails={eligibilityNotices.linkedTargetDetails}
               onMoveViewWindow={moveViewWindow}
               onJumpToToday={jumpToToday}
               onToggleExpandedMonthRows={() =>
