@@ -289,6 +289,12 @@ describe("CalendarSurface characterization", () => {
     const searchInput = await screen.findByRole("searchbox", {
       name: /search goals/i,
     });
+    expect(screen.getAllByRole("searchbox", { name: /search goals/i })).toHaveLength(1);
+    expect(
+      within(screen.getByTestId("planner-calendar-toolbar")).getByRole("searchbox", {
+        name: /search goals/i,
+      })
+    ).toBe(searchInput);
 
     fireEvent.change(searchInput, { target: { value: "goal a" } });
     await waitFor(() => {

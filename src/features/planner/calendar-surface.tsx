@@ -9,7 +9,6 @@ import {
   useRef,
   useState,
 } from "react";
-import { Input } from "@/components/ui/input";
 import { LoadingCard } from "@/components/ui/loading-card";
 import { allCategoriesValue } from "@/features/goals/goal-filters";
 import {
@@ -987,11 +986,13 @@ export function CalendarSurface({
         loading={loading}
         viewMode={viewMode}
         canOpenSettings={Boolean(context?.preferences)}
+        searchQuery={searchQuery}
         onSave={savePlan}
         onDiscardDraftChanges={discardDraftChanges}
         onViewModeChange={setCalendarViewMode}
         onOpenFilters={() => setFiltersOpen(true)}
         onOpenSettings={() => setSettingsOpen(true)}
+        onSearchQueryChange={setSearchQuery}
       />
 
       {partnerOverlayError ? (
@@ -1178,23 +1179,6 @@ export function CalendarSurface({
                 ) : null}
               </div>
             </PlannerDndProvider>
-            <div className="mt-3 border-t pt-3">
-              <label
-                htmlFor="planner-calendar-search"
-                className="mb-1 block text-xs font-medium text-muted-foreground"
-              >
-                Search goals
-              </label>
-              <Input
-                id="planner-calendar-search"
-                type="search"
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Filter by goal or milestone name"
-                className="h-8 text-xs"
-                aria-label="Search goals"
-              />
-            </div>
           </div>
 
           <PlannerCoachPanel coach={coach} />
