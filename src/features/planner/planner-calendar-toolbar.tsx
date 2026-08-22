@@ -156,7 +156,7 @@ export function PlannerCalendarToolbar({
             ) : null}
           </div>
         </div>
-        <div className="border-t pt-3">
+        <div className="pt-3">
           <Input
             id="planner-calendar-search"
             type="search"
