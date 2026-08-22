@@ -12,9 +12,10 @@ interface PlannerViewWindowHeaderProps {
   nextWindowAriaLabel: string;
   fixedViewHeadingWidthCh: number;
   viewHeading: string;
-  viewDescription: string;
+  showTodayShortcut: boolean;
   expandedMonthRows: boolean;
   onMoveViewWindow: (direction: -1 | 1) => void;
+  onJumpToToday: () => void;
   onToggleExpandedMonthRows: () => void;
 }
 
@@ -25,9 +26,10 @@ export function PlannerViewWindowHeader({
   nextWindowAriaLabel,
   fixedViewHeadingWidthCh,
   viewHeading,
-  viewDescription,
+  showTodayShortcut,
   expandedMonthRows,
   onMoveViewWindow,
+  onJumpToToday,
   onToggleExpandedMonthRows,
 }: PlannerViewWindowHeaderProps) {
   return (
@@ -72,10 +74,19 @@ export function PlannerViewWindowHeader({
           </div>
         </div>
       </div>
-      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-        <p className="min-w-0 flex-1">{viewDescription}</p>
-        {loading ? (
-          <span className="inline-flex items-center gap-1">
+      <div className="flex min-h-8 items-center justify-center">
+        {showTodayShortcut ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={loading}
+            onClick={onJumpToToday}
+          >
+            Today
+          </Button>
+        ) : loading ? (
+          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
             <Loader2 className="size-3 animate-spin" />
             Updating...
           </span>

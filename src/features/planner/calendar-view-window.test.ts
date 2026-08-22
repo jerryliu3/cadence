@@ -10,8 +10,6 @@ describe("selectCalendarViewWindowModel", () => {
       focusedWeekDays: ["2026-08-10"],
       focusedThreeDayDays: ["2026-08-09", "2026-08-10", "2026-08-11"],
       calendarToday: "2026-08-10",
-      todayMonth: "2026-08",
-      weekStartsOn: 1,
     });
 
     expect(model.resolvedFocusedDay).toBe("2026-08-10");
@@ -34,11 +32,8 @@ describe("selectCalendarViewWindowModel", () => {
       ],
       focusedThreeDayDays: ["2026-08-09", "2026-08-10", "2026-08-11"],
       calendarToday: "2026-08-10",
-      todayMonth: "2026-08",
-      weekStartsOn: 1,
     });
 
     expect(model.stepDays).toBe(7);
-    expect(model.canResetViewWindow).toBe(false);
   });
 });

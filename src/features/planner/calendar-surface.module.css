@@ -1,0 +1,10 @@
+.monthGridTrack {
+  /* Seven mobile columns plus the six half-rem gaps. */
+  width: calc(233.333333% + 0.666667rem);
+}
+
+@media (min-width: 48rem) {
+  .monthGridTrack {
+    width: 100%;
+  }
+}
