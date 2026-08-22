@@ -316,13 +316,20 @@ select ok(
 );
 
 select ok(
-  not exists (
+  exists (
     select 1
     from public.planner_items
     where goal_id = '92100000-0000-4000-8000-000000000001'
       and unit_key = 'total:3'
+      and scheduled_date = (date_trunc('month', current_date)::date + 14)
+  )
+  and not exists (
+    select 1
+    from public.planner_items
+    where goal_id = '92100000-0000-4000-8000-000000000001'
+      and unit_key = 'total:4'
   ),
-  'delete removes old total:3 identity after renumbering'
+  'delete shifts the added total:4 down to total:3'
 );
 
 select lives_ok(
