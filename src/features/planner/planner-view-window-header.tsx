@@ -17,6 +17,7 @@ interface PlannerViewWindowHeaderProps {
   onMoveViewWindow: (direction: -1 | 1) => void;
   onJumpToToday: () => void;
   onToggleExpandedMonthRows: () => void;
+  onOpenMonthView: () => void;
 }
 
 export function PlannerViewWindowHeader({
@@ -31,6 +32,7 @@ export function PlannerViewWindowHeader({
   onMoveViewWindow,
   onJumpToToday,
   onToggleExpandedMonthRows,
+  onOpenMonthView,
 }: PlannerViewWindowHeaderProps) {
   return (
     <div className="mx-auto mb-3 w-full max-w-[56rem] space-y-3">
@@ -70,7 +72,17 @@ export function PlannerViewWindowHeader({
                   <Maximize2 className="size-4" />
                 )}
               </Button>
-            ) : null}
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={loading}
+                onClick={onOpenMonthView}
+              >
+                Month View
+              </Button>
+            )}
           </div>
         </div>
       </div>
