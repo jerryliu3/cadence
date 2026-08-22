@@ -3019,6 +3019,7 @@ export type Database = {
         }[]
       }
       soft_delete_goal: { Args: { p_goal_id: string }; Returns: undefined }
+      synthetic_activity_tick_service: { Args: never; Returns: Json }
       synthetic_apply_completion_service: {
         Args: { p_completed_on?: string; p_goal_id: string; p_user_id: string }
         Returns: boolean
